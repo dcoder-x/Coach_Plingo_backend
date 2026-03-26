@@ -1,7 +1,0 @@
-$kind: http-request
-description: Get words with lowest mastery scores that need most practice
-url: "{{base_url}}/progress/needs-work/{{learning_path_id}}"
-method: GET
-headers:
-  Authorization: Bearer {{access_token}}
-order: 5000

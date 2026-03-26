@@ -1,7 +1,0 @@
-$kind: http-request
-description: Get the currently active learning window with words to practice
-url: "{{base_url}}/vocabulary/active-window/{{learning_path_id}}"
-method: GET
-headers:
-  Authorization: Bearer {{access_token}}
-order: 1000

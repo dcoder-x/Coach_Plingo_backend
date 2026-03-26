@@ -1,7 +1,0 @@
-$kind: http-request
-description: Get overall progress statistics for a learning path
-url: "{{base_url}}/progress/stats/{{learning_path_id}}"
-method: GET
-headers:
-  Authorization: Bearer {{access_token}}
-order: 2000

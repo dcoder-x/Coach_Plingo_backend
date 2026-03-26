@@ -1,7 +1,0 @@
-$kind: http-request
-description: Get daily activity log showing word attempts per day
-url: "{{base_url}}/progress/daily-activity/{{learning_path_id}}"
-method: GET
-headers:
-  Authorization: Bearer {{access_token}}
-order: 6000

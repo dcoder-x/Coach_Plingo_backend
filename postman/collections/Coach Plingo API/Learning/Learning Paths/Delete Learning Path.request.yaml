@@ -1,7 +1,0 @@
-$kind: http-request
-description: Delete a learning path
-url: "{{base_url}}/learning/paths/{{learning_path_id}}"
-method: DELETE
-headers:
-  Authorization: Bearer {{access_token}}
-order: 5000

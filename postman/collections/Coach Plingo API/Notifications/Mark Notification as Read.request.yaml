@@ -1,7 +1,0 @@
-$kind: http-request
-description: Mark a specific notification as read
-url: "{{base_url}}/notifications/{{notification_id}}/read"
-method: PUT
-headers:
-  Authorization: Bearer {{access_token}}
-order: 4000

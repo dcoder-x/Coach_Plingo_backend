@@ -1,8 +1,0 @@
-$kind: http-request
-description: Get breakdown of word mastery levels (beginner, novice,
-  intermediate, advanced, expert)
-url: "{{base_url}}/progress/mastery-breakdown/{{learning_path_id}}"
-method: GET
-headers:
-  Authorization: Bearer {{access_token}}
-order: 3000
