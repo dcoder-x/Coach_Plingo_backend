@@ -1,0 +1,8 @@
+$kind: http-request
+description: Google OAuth callback (handled by frontend, not testable directly in Postman)
+url: "{{base_url}}/auth/google/callback?code=AUTH_CODE&state=STATE"
+method: GET
+queryParams:
+  code: AUTH_CODE
+  state: STATE
+order: 2000

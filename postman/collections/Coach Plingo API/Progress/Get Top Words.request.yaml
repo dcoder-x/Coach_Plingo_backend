@@ -1,0 +1,7 @@
+$kind: http-request
+description: Get top mastered words with highest mastery scores
+url: "{{base_url}}/progress/top-words/{{learning_path_id}}"
+method: GET
+headers:
+  Authorization: Bearer {{access_token}}
+order: 4000

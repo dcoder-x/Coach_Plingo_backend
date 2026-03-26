@@ -1,0 +1,15 @@
+$kind: http-request
+description: Upload or update learner avatar (JPG, PNG, WebP, max 5MB). Old
+  avatar automatically deleted from Cloudinary.
+url: "{{base_url}}/auth/avatar"
+method: POST
+headers:
+  Authorization: Bearer {{access_token}}
+body:
+  type: formdata
+  content:
+    - type: file
+      key: avatar
+      src:
+        - /path/to/your/image.jpg
+order: 1000

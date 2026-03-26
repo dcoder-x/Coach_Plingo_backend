@@ -1,0 +1,419 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// 3.1 Identity Domain
+// ============================================================================
+
+model Learner {
+  id              String   @id @default(cuid())
+  fullName        String
+  email           String   @unique
+  oauthProvider   String?  // 'google' | 'apple' | null for email auth
+  oauthId         String?
+  baseLanguage    String   // Learner's native language
+  profession      String   // Determines vocabulary relevance
+  location        String?  // Optional locale/dialect hints
+  avatarUrl       String?
+  avatarPublicId  String?
+  emailVerified   Boolean  @default(false)
+  notificationInAppEnabled Boolean @default(true)
+  notificationEmailEnabled Boolean @default(true)
+  twoFactorEnabled Boolean @default(false)
+  twoFactorMethod  String?
+  twoFactorCodeHash String?
+  twoFactorCodeExpiry DateTime?
+  emailOtp        String?
+  emailOtpExpiry  DateTime?
+  passwordResetOtp       String?
+  passwordResetOtpExpiry DateTime?
+  profileComplete Boolean  @default(false)
+  passwordHash    String?  // null if OAuth user
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  learningPaths            LearningPath[]
+  comprehensionResponses   ComprehensionResponse[]
+  pronunciationAttempts    PronunciationAttempt[]
+
+  @@index([email])
+  @@index([oauthProvider, oauthId])
+}
+
+model LanguageOption {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([name])
+}
+
+model ProfessionOption {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([name])
+}
+
+// ============================================================================
+// 3.2 Learning Path Domain
+// ============================================================================
+
+model LearningPath {
+  id              String   @id @default(cuid())
+  learnerId       String
+  language        String   // Target language being learned
+  profession      String   // Profession context
+  status          LearningPathStatus @default(ACTIVE) // active | paused | completed
+  currentMilestone Int      @default(1) // 1, 2, or 3
+  wordsPerLesson  Int      @default(20) // Learner-configured batch size
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  learner         Learner  @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  milestones      Milestone[]
+  learnerWordStates LearnerWordState[]
+
+  @@unique([learnerId, language, profession])
+  @@index([learnerId])
+  @@index([status])
+}
+
+enum LearningPathStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+model Milestone {
+  id              String   @id @default(cuid())
+  learningPathId  String
+  milestoneNumber Int      // 1 = vocabulary sprint, 2 = comprehension, 3 = pronunciation mastery
+  type            MilestoneType
+  status          MilestoneStatus @default(PENDING)
+  generatedWords  Json?    // Milestone 1 only - accumulated words to prevent duplicates
+  unlockedAt      DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  learningPath    LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
+  stories         Story[]
+  pronunciationExercises PronunciationExercise[]
+
+  @@unique([learningPathId, milestoneNumber])
+  @@index([learningPathId])
+  @@index([status])
+}
+
+enum MilestoneType {
+  VOCABULARY_SPRINT
+  COMPREHENSION
+  PRONUNCIATION_MASTERY
+}
+
+enum MilestoneStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+}
+
+// ============================================================================
+// 3.3 Vocabulary Domain
+// ============================================================================
+
+model GlobalVocabularySet {
+  id              String   @id @default(cuid())
+  language        String   // Target language
+  profession      String   // Profession context
+  difficultyBand  DifficultyBand
+  wordCount       Int      @default(0)
+  lastGeneratedAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  words           GlobalVocabularyWord[]
+
+  @@unique([language, profession, difficultyBand])
+  @@index([language, profession])
+}
+
+enum DifficultyBand {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+model GlobalVocabularyWord {
+  id                String   @id @default(cuid())
+  setId             String
+  word              String   // Target-language word
+  complexityLevel   DifficultyBand
+  examplePhrases    Json?    // Array of phrases
+  exampleSentences  Json?    // Array of sentences
+  tags              Json?    // Semantic tags for targeting
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  vocabularySet     GlobalVocabularySet @relation(fields: [setId], references: [id], onDelete: Cascade)
+  translations      WordTranslation[]
+  audioCache        VocabularyAudioCache?
+  learnerWordStates LearnerWordState[]
+
+  @@index([setId])
+  @@index([complexityLevel])
+  @@index([word])
+}
+
+model WordTranslation {
+  id              String   @id @default(cuid())
+  wordId          String
+  baseLanguage    String   // Learner's native language
+  translation     String
+  generatedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  word            GlobalVocabularyWord @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([wordId, baseLanguage])
+  @@index([wordId])
+  @@index([baseLanguage])
+}
+
+model VocabularyAudioCache {
+  id              String   @id @default(cuid())
+  wordId          String   @unique
+  language        String   // Target language (for disambiguation)
+  audioUrl        String   // Object store URL - permanent
+  ipa             String?  // IPA transcription
+  generatedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  word            GlobalVocabularyWord @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@index([wordId])
+}
+
+// ============================================================================
+// 3.4 Active Learning Window
+// ============================================================================
+
+model LearnerWordState {
+  id                String   @id @default(cuid())
+  learningPathId    String
+  wordId            String
+  status            WordStatus @default(LOCKED)
+  masteryScore      Decimal  @default(0.00) @db.Decimal(4, 2) // 0.00-10.00, threshold 8.0
+  meaningSeen       Boolean  @default(false)
+  usageCompleted    Boolean  @default(false)
+  pronunciationScore Decimal  @default(0.00) @db.Decimal(4, 2)
+  attemptCount      Int      @default(0)
+  lastAttemptedAt   DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  learningPath      LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
+  word              GlobalVocabularyWord @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([learningPathId, wordId])
+  @@index([learningPathId])
+  @@index([wordId])
+  @@index([status])
+  @@index([masteryScore])
+}
+
+enum WordStatus {
+  ACTIVE
+  LOCKED
+  MASTERED
+}
+
+// ============================================================================
+// 3.5 Comprehension Domain
+// ============================================================================
+
+model Story {
+  id                String   @id @default(cuid())
+  milestoneId       String
+  content           String   // Full story text
+  vocabularyCoverage Json?   // Array of word IDs embedded in story
+  status            StoryStatus @default(GENERATED)
+  generatedAt       DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  milestone         Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  questions         ComprehensionQuestion[]
+
+  @@unique([milestoneId])
+  @@index([milestoneId])
+}
+
+enum StoryStatus {
+  GENERATED
+  PUBLISHED
+}
+
+model ComprehensionQuestion {
+  id              String   @id @default(cuid())
+  storyId         String
+  questionText    String
+  options         Json?    // Array of MCQ options (null for short-answer)
+  correctAnswer   String
+  questionType    QuestionType
+  position        Int      // Display order
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  story           Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  responses       ComprehensionResponse[]
+
+  @@index([storyId])
+  @@index([position])
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  SHORT_ANSWER
+}
+
+model ComprehensionResponse {
+  id              String   @id @default(cuid())
+  questionId      String
+  learnerId       String
+  response        String
+  isCorrect       Boolean
+  respondedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  question        ComprehensionQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  learner         Learner @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@index([learnerId])
+}
+
+// ============================================================================
+// 3.6 Pronunciation Domain
+// ============================================================================
+
+model PronunciationExercise {
+  id                String   @id @default(cuid())
+  milestoneId       String
+  targetText        String   // Profession-specific sentence to pronounce
+  referenceAudioUrl String   // ElevenLabs-generated reference audio
+  complexityLevel   DifficultyBand
+  position          Int      // Exercise order within milestone
+  generatedAt       DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  milestone         Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  attempts          PronunciationAttempt[]
+
+  @@index([milestoneId])
+  @@index([position])
+}
+
+model PronunciationAttempt {
+  id                String   @id @default(cuid())
+  exerciseId        String
+  learnerId         String
+  recordedAudioUrl  String   // S3 object store URL
+  accuracyScore     Decimal  @default(0.00) @db.Decimal(4, 2) // ElevenLabs phoneme comparison
+  passed            Boolean  @default(false)
+  attemptedAt       DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  exercise          PronunciationExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  learner           Learner @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+
+  @@index([exerciseId])
+  @@index([learnerId])
+}
+
+// ============================================================================
+// Notifications (future feature)
+// ============================================================================
+
+model Notification {
+  id              String   @id @default(cuid())
+  learnerId       String
+  type            NotificationType
+  title           String
+  message         String
+  read            Boolean  @default(false)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([learnerId])
+  @@index([read])
+}
+
+enum NotificationType {
+  MILESTONE_COMPLETED
+  WORD_MASTERED
+  LESSON_AVAILABLE
+  DAILY_REMINDER
+  ACHIEVEMENT
+  ERROR
+}
+
+// ============================================================================
+// Job Queue (for tracking async operations)
+// ============================================================================
+
+model AsyncJob {
+  id              String   @id @default(cuid())
+  type            JobType
+  status          JobStatus @default(PENDING)
+  learnerId       String?  // Optional: link to learner
+  payload         Json     // Job parameters
+  result          Json?    // Job result/output
+  error           String?  // Error message if failed
+  currentRetry    Int      @default(0)
+  maxRetries      Int      @default(3)
+  attemptedAt     DateTime[]
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([learnerId])
+}
+
+enum JobType {
+  GENERATE_LESSON
+  GENERATE_STORY
+  GENERATE_EXERCISES
+  GENERATE_AUDIO
+  SCORE_PRONUNCIATION
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}

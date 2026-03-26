@@ -1,0 +1,5 @@
+$kind: http-request
+description: Initiate Google OAuth login flow (frontend only)
+url: "{{base_url}}/auth/google"
+method: GET
+order: 1000

@@ -1,0 +1,38 @@
+$kind: http-request
+description: |-
+  Update notification preferences. Both fields optional.
+
+  **Request Body**:
+  - `inAppEnabled` (boolean, optional): Enable/disable in-app notifications
+  - `emailEnabled` (boolean, optional): Enable/disable email notifications
+
+  **Response Example (200)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "notifications": {
+        "inAppEnabled": true,
+        "emailEnabled": false
+      }
+    }
+  }
+  ```
+
+  **Error Cases**:
+  - 400: Bad request (invalid field types)
+  - 401: Unauthorized
+  - 404: User not found
+url: "{{base_url}}/auth/settings/notifications"
+method: PATCH
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{access_token}}
+body:
+  type: text
+  content: |-
+    {
+      "inAppEnabled": true,
+      "emailEnabled": false
+    }
+order: 6000

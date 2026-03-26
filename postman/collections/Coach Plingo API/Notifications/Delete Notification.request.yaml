@@ -1,0 +1,7 @@
+$kind: http-request
+description: Delete a specific notification
+url: "{{base_url}}/notifications/{{notification_id}}"
+method: DELETE
+headers:
+  Authorization: Bearer {{access_token}}
+order: 6000

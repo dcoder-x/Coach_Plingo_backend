@@ -1,0 +1,7 @@
+$kind: http-request
+description: Mark all notifications as read
+url: "{{base_url}}/notifications/read-all"
+method: PUT
+headers:
+  Authorization: Bearer {{access_token}}
+order: 5000

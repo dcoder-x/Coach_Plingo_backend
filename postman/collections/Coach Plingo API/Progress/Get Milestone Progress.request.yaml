@@ -1,0 +1,7 @@
+$kind: http-request
+description: Get progress for specific milestone (1, 2, or 3)
+url: "{{base_url}}/progress/milestone/{{learning_path_id}}/1"
+method: GET
+headers:
+  Authorization: Bearer {{access_token}}
+order: 7000

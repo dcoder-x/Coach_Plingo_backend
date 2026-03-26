@@ -1,0 +1,28 @@
+$kind: http-request
+description: Get a new access token using refresh token
+url: "{{base_url}}/auth/refresh"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "refreshToken": "{{refresh_token}}"
+    }
+scripts:
+  - type: afterResponse
+    code: >-
+      pm.test('Status is successful', function () {
+      pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+
+      try {
+        const json = pm.response.json();
+        const data = json?.data || {};
+        if (data?.token?.accessToken) pm.collectionVariables.set('access_token', data.token.accessToken);
+        if (data?.token?.refreshToken) pm.collectionVariables.set('refresh_token', data.token.refreshToken);
+      } catch (error) {
+        console.log('No JSON body to parse for token capture', error);
+      }
+    language: text/javascript
+order: 8000

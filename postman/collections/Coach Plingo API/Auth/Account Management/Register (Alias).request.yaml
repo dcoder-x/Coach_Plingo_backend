@@ -1,0 +1,15 @@
+$kind: http-request
+description: Alternative signup endpoint
+url: "{{base_url}}/auth/register"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "email": "newuser2@example.com",
+      "password": "SecurePass123!",
+      "fullName": "Jane Smith"
+    }
+order: 2000

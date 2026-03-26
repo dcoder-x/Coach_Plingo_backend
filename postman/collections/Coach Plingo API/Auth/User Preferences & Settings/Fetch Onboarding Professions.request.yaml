@@ -1,0 +1,34 @@
+$kind: http-request
+description: >-
+  Fetch list of available professions for onboarding. Can be called during
+  signup to pre-populate profession selection.
+
+
+  **Response Example (200)**:
+
+  ```json
+
+  {
+    "success": true,
+    "data": {
+      "professions": [
+        {"id": "software_engineer", "name": "Software Engineer"},
+        {"id": "data_scientist", "name": "Data Scientist"},
+        {"id": "product_manager", "name": "Product Manager"},
+        {"id": "designer", "name": "Designer"},
+        {"id": "marketing", "name": "Marketing Specialist"}
+      ]
+    }
+  }
+
+  ```
+
+
+  **Error Cases**:
+
+  - 401: Unauthorized (missing/invalid access token)
+url: "{{base_url}}/auth/onboarding/professions"
+method: GET
+headers:
+  Authorization: Bearer {{access_token}}
+order: 2000

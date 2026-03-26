@@ -1,0 +1,14 @@
+$kind: http-request
+description: Update learning path settings
+url: "{{base_url}}/learning/paths/{{learning_path_id}}"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{access_token}}
+body:
+  type: text
+  content: |-
+    {
+      "proficiencyLevel": "intermediate"
+    }
+order: 4000

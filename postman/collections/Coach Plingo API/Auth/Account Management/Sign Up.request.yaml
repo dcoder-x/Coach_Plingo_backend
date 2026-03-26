@@ -1,0 +1,15 @@
+$kind: http-request
+description: Create a new learner account with email and password
+url: "{{base_url}}/auth/signup"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "email": "newuser@example.com",
+      "password": "SecurePass123!",
+      "fullName": "John Doe"
+    }
+order: 1000

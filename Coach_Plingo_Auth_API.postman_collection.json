@@ -1,0 +1,811 @@
+{
+  "info": {
+    "_postman_id": "coach-plingo-api",
+    "name": "Coach Plingo API",
+    "description": "Complete API collection for Coach Plingo language learning platform with Auth, Learning Paths, Progress Tracking, Vocabulary, Notifications, and Content Generation",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Account Management",
+          "item": [
+            {
+              "name": "Sign Up",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"fullName\": \"John Doe\"\n}"
+                },
+                "url": {"raw": "{{base_url}}/auth/signup", "host": ["{{base_url}}"], "path": ["auth", "signup"]},
+                "description": "Create a new learner account with email and password"
+              }
+            },
+            {
+              "name": "Register (Alias)",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"newuser2@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"fullName\": \"Jane Smith\"\n}"
+                },
+                "url": {"raw": "{{base_url}}/auth/register", "host": ["{{base_url}}"], "path": ["auth", "register"]},
+                "description": "Alternative signup endpoint"
+              }
+            },
+            {
+              "name": "Login",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
+                },
+                "url": {"raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"]},
+                "description": "Login with email and password. Returns access and refresh tokens."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status is successful', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                      "try {",
+                      "  const json = pm.response.json();",
+                      "  const data = json?.data || {};",
+                      "  if (data?.learner?.id) pm.collectionVariables.set('learner_id', data.learner.id);",
+                      "  if (data?.token?.accessToken) pm.collectionVariables.set('access_token', data.token.accessToken);",
+                      "  if (data?.token?.refreshToken) pm.collectionVariables.set('refresh_token', data.token.refreshToken);",
+                      "  if (data?.onboardingToken) pm.collectionVariables.set('onboarding_token', data.onboardingToken);",
+                      "  if (data?.nextStep) pm.collectionVariables.set('next_step', data.nextStep);",
+                      "} catch (error) {",
+                      "  console.log('No JSON body to parse for token capture', error);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Current Profile",
+              "request": {
+                "method": "GET",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {"raw": "{{base_url}}/auth/me", "host": ["{{base_url}}"], "path": ["auth", "me"]},
+                "description": "Retrieve the current logged-in learner profile"
+              }
+            },
+            {
+              "name": "Update Profile",
+              "request": {
+                "method": "PUT",
+                "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"fullName\": \"John Updated\",\n  \"baseLanguage\": \"en\",\n  \"profession\": \"software_engineer\",\n  \"location\": \"Lagos\"\n}"
+                },
+                "url": {"raw": "{{base_url}}/auth/profile", "host": ["{{base_url}}"], "path": ["auth", "profile"]},
+                "description": "Update learner profile information"
+              }
+            },
+            {
+              "name": "Change Password",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"currentPassword\": \"SecurePass123!\",\n  \"newPassword\": \"NewSecurePass456!\"\n}"
+                },
+                "url": {"raw": "{{base_url}}/auth/change-password", "host": ["{{base_url}}"], "path": ["auth", "change-password"]},
+                "description": "Change account password (requires current password)"
+              }
+            },
+            {
+              "name": "Complete Onboarding",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Authorization", "value": "Bearer {{onboarding_token}}"}],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {"key": "fullName", "value": "John Doe", "type": "text"},
+                    {"key": "baseLanguage", "value": "en", "type": "text"},
+                    {"key": "profession", "value": "software_engineer", "type": "text"},
+                    {"key": "location", "value": "Lagos", "type": "text"},
+                    {"key": "avatar", "type": "file", "src": "/path/to/your/image.jpg"}
+                  ]
+                },
+                "url": {"raw": "{{base_url}}/auth/onboarding", "host": ["{{base_url}}"], "path": ["auth", "onboarding"]},
+                "description": "Complete profile onboarding using onboarding token. Returns access and refresh tokens."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status is successful', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                      "try {",
+                      "  const json = pm.response.json();",
+                      "  const data = json?.data || {};",
+                      "  if (data?.learner?.id) pm.collectionVariables.set('learner_id', data.learner.id);",
+                      "  if (data?.token?.accessToken) pm.collectionVariables.set('access_token', data.token.accessToken);",
+                      "  if (data?.token?.refreshToken) pm.collectionVariables.set('refresh_token', data.token.refreshToken);",
+                      "  if (data?.nextStep) pm.collectionVariables.set('next_step', data.nextStep);",
+                      "} catch (error) {",
+                      "  console.log('No JSON body to parse for token capture', error);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Refresh Token",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
+                },
+                "url": {"raw": "{{base_url}}/auth/refresh", "host": ["{{base_url}}"], "path": ["auth", "refresh"]},
+                "description": "Get a new access token using refresh token"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status is successful', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                      "try {",
+                      "  const json = pm.response.json();",
+                      "  const data = json?.data || {};",
+                      "  if (data?.token?.accessToken) pm.collectionVariables.set('access_token', data.token.accessToken);",
+                      "  if (data?.token?.refreshToken) pm.collectionVariables.set('refresh_token', data.token.refreshToken);",
+                      "} catch (error) {",
+                      "  console.log('No JSON body to parse for token capture', error);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Logout",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
+                },
+                "url": {"raw": "{{base_url}}/auth/logout", "host": ["{{base_url}}"], "path": ["auth", "logout"]},
+                "description": "Stateless logout endpoint"
+              }
+            },
+            {
+              "name": "Delete Account",
+              "request": {
+                "method": "DELETE",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {"raw": "{{base_url}}/auth/account", "host": ["{{base_url}}"], "path": ["auth", "account"]},
+                "description": "Delete learner account and all associated data"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Email Verification",
+          "item": [
+            {
+              "name": "Resend Email OTP",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {"mode": "raw", "raw": "{\n  \"email\": \"newuser@example.com\"\n}"},
+                "url": {"raw": "{{base_url}}/auth/resend-otp", "host": ["{{base_url}}"], "path": ["auth", "resend-otp"]},
+                "description": "Resend email verification OTP to user's email"
+              }
+            },
+            {
+              "name": "Verify Email with OTP",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {"mode": "raw", "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"otp\": \"123456\"\n}"},
+                "url": {"raw": "{{base_url}}/auth/verify-email-otp", "host": ["{{base_url}}"], "path": ["auth", "verify-email-otp"]},
+                "description": "Verify email using 6-digit OTP sent to email (check console logs in dev mode)"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status is successful', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                      "try {",
+                      "  const json = pm.response.json();",
+                      "  const data = json?.data || {};",
+                      "  if (data?.learner?.id) pm.collectionVariables.set('learner_id', data.learner.id);",
+                      "  if (data?.token?.accessToken) pm.collectionVariables.set('access_token', data.token.accessToken);",
+                      "  if (data?.token?.refreshToken) pm.collectionVariables.set('refresh_token', data.token.refreshToken);",
+                      "  if (data?.onboardingToken) pm.collectionVariables.set('onboarding_token', data.onboardingToken);",
+                      "  if (data?.nextStep) pm.collectionVariables.set('next_step', data.nextStep);",
+                      "} catch (error) {",
+                      "  console.log('No JSON body to parse for token capture', error);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Verify Email (Alternative)",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {"mode": "raw", "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"otp\": \"123456\"\n}"},
+                "url": {"raw": "{{base_url}}/auth/verify-email", "host": ["{{base_url}}"], "path": ["auth", "verify-email"]},
+                "description": "Alternative email verification endpoint"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status is successful', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                      "try {",
+                      "  const json = pm.response.json();",
+                      "  const data = json?.data || {};",
+                      "  if (data?.learner?.id) pm.collectionVariables.set('learner_id', data.learner.id);",
+                      "  if (data?.token?.accessToken) pm.collectionVariables.set('access_token', data.token.accessToken);",
+                      "  if (data?.token?.refreshToken) pm.collectionVariables.set('refresh_token', data.token.refreshToken);",
+                      "  if (data?.onboardingToken) pm.collectionVariables.set('onboarding_token', data.onboardingToken);",
+                      "  if (data?.nextStep) pm.collectionVariables.set('next_step', data.nextStep);",
+                      "} catch (error) {",
+                      "  console.log('No JSON body to parse for token capture', error);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Password Reset",
+          "item": [
+            {
+              "name": "Forgot Password (Request OTP)",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {"mode": "raw", "raw": "{\n  \"email\": \"newuser@example.com\"\n}"},
+                "url": {"raw": "{{base_url}}/auth/forgot-password", "host": ["{{base_url}}"], "path": ["auth", "forgot-password"]},
+                "description": "Request password reset OTP (public endpoint, no auth required). OTP will be sent to email/printed to console in dev."
+              }
+            },
+            {
+              "name": "Reset Password with OTP",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {"mode": "raw", "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"NewSecurePass456!\"\n}"},
+                "url": {"raw": "{{base_url}}/auth/reset-password", "host": ["{{base_url}}"], "path": ["auth", "reset-password"]},
+                "description": "Reset password using OTP (public endpoint, no auth required)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Avatar",
+          "item": [
+            {
+              "name": "Upload Avatar",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "body": {"mode": "formdata", "formdata": [{"key": "avatar", "type": "file", "src": "/path/to/your/image.jpg"}]},
+                "url": {"raw": "{{base_url}}/auth/avatar", "host": ["{{base_url}}"], "path": ["auth", "avatar"]},
+                "description": "Upload or update learner avatar (JPG, PNG, WebP, max 5MB). Old avatar automatically deleted from Cloudinary."
+              }
+            }
+          ]
+        },
+        {
+          "name": "OAuth",
+          "item": [
+            {
+              "name": "Google Login Redirect",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {"raw": "{{base_url}}/auth/google", "host": ["{{base_url}}"], "path": ["auth", "google"]},
+                "description": "Initiate Google OAuth login flow (frontend only)"
+              }
+            },
+            {
+              "name": "Google Callback (Info Only)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {"raw": "{{base_url}}/auth/google/callback?code=AUTH_CODE&state=STATE", "host": ["{{base_url}}"], "path": ["auth", "google", "callback"], "query": [{"key": "code", "value": "AUTH_CODE"}, {"key": "state", "value": "STATE"}]},
+                "description": "Google OAuth callback (handled by frontend, not testable directly in Postman)"
+              }
+            },
+            {
+              "name": "OAuth Login",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {"mode": "raw", "raw": "{\n  \"oauthProvider\": \"google\",\n  \"email\": \"user@gmail.com\",\n  \"fullName\": \"Google User\",\n  \"oauthId\": \"google_oauth_id_12345\"\n}"},
+                "url": {"raw": "{{base_url}}/auth/oauth", "host": ["{{base_url}}"], "path": ["auth", "oauth"]},
+                "description": "OAuth login with provider details"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status is successful', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                      "try {",
+                      "  const json = pm.response.json();",
+                      "  const data = json?.data || {};",
+                      "  if (data?.learner?.id) pm.collectionVariables.set('learner_id', data.learner.id);",
+                      "  if (data?.token?.accessToken) pm.collectionVariables.set('access_token', data.token.accessToken);",
+                      "  if (data?.token?.refreshToken) pm.collectionVariables.set('refresh_token', data.token.refreshToken);",
+                      "  if (data?.onboardingToken) pm.collectionVariables.set('onboarding_token', data.onboardingToken);",
+                      "  if (data?.nextStep) pm.collectionVariables.set('next_step', data.nextStep);",
+                      "} catch (error) {",
+                      "  console.log('No JSON body to parse for token capture', error);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "User Preferences & Settings",
+          "item": [
+            {
+              "name": "Fetch Onboarding Languages",
+              "request": {
+                "method": "GET",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {"raw": "{{base_url}}/auth/onboarding/languages", "host": ["{{base_url}}"], "path": ["auth", "onboarding", "languages"]},
+                "description": "Fetch list of available languages for onboarding. Can be called during signup to pre-populate language selection.\n\n**Response Example (200)**:\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"languages\": [\n      {\"code\": \"es\", \"name\": \"Spanish\"},\n      {\"code\": \"fr\", \"name\": \"French\"},\n      {\"code\": \"de\", \"name\": \"German\"},\n      {\"code\": \"zh\", \"name\": \"Mandarin\"},\n      {\"code\": \"ja\", \"name\": \"Japanese\"}\n    ]\n  }\n}\n```\n\n**Error Cases**:\n- 401: Unauthorized (missing/invalid access token)"
+              }
+            },
+            {
+              "name": "Fetch Onboarding Professions",
+              "request": {
+                "method": "GET",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {"raw": "{{base_url}}/auth/onboarding/professions", "host": ["{{base_url}}"], "path": ["auth", "onboarding", "professions"]},
+                "description": "Fetch list of available professions for onboarding. Can be called during signup to pre-populate profession selection.\n\n**Response Example (200)**:\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"professions\": [\n      {\"id\": \"software_engineer\", \"name\": \"Software Engineer\"},\n      {\"id\": \"data_scientist\", \"name\": \"Data Scientist\"},\n      {\"id\": \"product_manager\", \"name\": \"Product Manager\"},\n      {\"id\": \"designer\", \"name\": \"Designer\"},\n      {\"id\": \"marketing\", \"name\": \"Marketing Specialist\"}\n    ]\n  }\n}\n```\n\n**Error Cases**:\n- 401: Unauthorized (missing/invalid access token)"
+              }
+            },
+            {
+              "name": "Get User Preferences",
+              "request": {
+                "method": "GET",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {"raw": "{{base_url}}/auth/preferences", "host": ["{{base_url}}"], "path": ["auth", "preferences"]},
+                "description": "Retrieve user's current preferences (base language, profession, location).\n\n**Response Example (200)**:\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"preferences\": {\n      \"baseLanguage\": \"en\",\n      \"profession\": \"software_engineer\",\n      \"location\": \"Lagos\"\n    }\n  }\n}\n```\n\n**Error Cases**:\n- 401: Unauthorized (missing/invalid access token)\n- 404: User not found"
+              }
+            },
+            {
+              "name": "Update User Preferences",
+              "request": {
+                "method": "PUT",
+                "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"baseLanguage\": \"en\",\n  \"profession\": \"software_engineer\",\n  \"location\": \"San Francisco\"\n}"
+                },
+                "url": {"raw": "{{base_url}}/auth/preferences", "host": ["{{base_url}}"], "path": ["auth", "preferences"]},
+                "description": "Update user preferences (base language, profession, location). All fields optional.\n\n**Request Body**:\n- `baseLanguage` (string, optional): User's native/base language code (e.g., 'en', 'es', 'fr')\n- `profession` (string, optional): User's profession (e.g., 'software_engineer')\n- `location` (string, optional): User's geographic location\n\n**Response Example (200)**:\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"preferences\": {\n      \"baseLanguage\": \"en\",\n      \"profession\": \"software_engineer\",\n      \"location\": \"San Francisco\"\n    }\n  }\n}\n```\n\n**Error Cases**:\n- 400: Bad request (invalid field values)\n- 401: Unauthorized\n- 404: User not found"
+              }
+            },
+            {
+              "name": "Get User Settings",
+              "request": {
+                "method": "GET",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {"raw": "{{base_url}}/auth/settings", "host": ["{{base_url}}"], "path": ["auth", "settings"]},
+                "description": "Retrieve user's security and notification settings including 2FA status.\n\n**Response Example (200)**:\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"settings\": {\n      \"notifications\": {\n        \"inAppEnabled\": true,\n        \"emailEnabled\": true\n      },\n      \"security\": {\n        \"twoFactorEnabled\": false,\n        \"twoFactorMethod\": null\n      }\n    }\n  }\n}\n```\n\n**Error Cases**:\n- 401: Unauthorized\n- 404: User not found"
+              }
+            },
+            {
+              "name": "Update Notification Settings",
+              "request": {
+                "method": "PATCH",
+                "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"inAppEnabled\": true,\n  \"emailEnabled\": false\n}"
+                },
+                "url": {"raw": "{{base_url}}/auth/settings/notifications", "host": ["{{base_url}}"], "path": ["auth", "settings", "notifications"]},
+                "description": "Update notification preferences. Both fields optional.\n\n**Request Body**:\n- `inAppEnabled` (boolean, optional): Enable/disable in-app notifications\n- `emailEnabled` (boolean, optional): Enable/disable email notifications\n\n**Response Example (200)**:\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"notifications\": {\n      \"inAppEnabled\": true,\n      \"emailEnabled\": false\n    }\n  }\n}\n```\n\n**Error Cases**:\n- 400: Bad request (invalid field types)\n- 401: Unauthorized\n- 404: User not found"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Two-Factor Authentication (2FA)",
+          "item": [
+            {
+              "name": "Start 2FA Setup",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "body": {"mode": "raw", "raw": ""},
+                "url": {"raw": "{{base_url}}/auth/2fa/setup", "host": ["{{base_url}}"], "path": ["auth", "2fa", "setup"]},
+                "description": "Initiate 2FA setup process. Sends a 6-digit OTP via email.\n\n**Request Body**: Empty (no body required)\n\n**Response Example (200)**:\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"message\": \"2FA verification code sent to your email. It expires in 10 minutes.\",\n    \"method\": \"email\"\n  }\n}\n```\n\n**Dev Mode**: In development, OTP is printed to console logs.\n\n**Error Cases**:\n- 401: Unauthorized (missing/invalid access token)\n- 404: User not found (account deleted or invalid)\n- 409: Conflict (2FA already enabled, disable first)\n- 500: SMTP error if email service unconfigured (dev: falls back to console logging)"
+              }
+            },
+            {
+              "name": "Verify 2FA Setup",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"otp\": \"123456\"\n}"
+                },
+                "url": {"raw": "{{base_url}}/auth/2fa/verify", "host": ["{{base_url}}"], "path": ["auth", "2fa", "verify"]},
+                "description": "Verify 2FA setup by submitting OTP received via email. Enables 2FA on the account.\n\n**Request Body**:\n- `otp` (string, required): 6-digit OTP from email (check console.log in dev)\n\n**Response Example (200)**:\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"twoFactorEnabled\": true,\n    \"method\": \"email\"\n  }\n}\n```\n\n**Workflow**:\n1. Call POST /auth/2fa/setup to send OTP\n2. Copy OTP from email (or console in dev)\n3. Call this endpoint with the OTP within 10 minutes\n4. 2FA is now active and will be required on next login\n\n**Error Cases**:\n- 400: Bad request (invalid OTP format or OTP expired)\n- 401: Unauthorized\n- 404: User not found\n- 422: Unprocessable entity (OTP incorrect or mismatch)\n- 500: Failed to enable 2FA"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('2FA setup verification successful', function () { pm.expect(pm.response.code).to.eql(200); });",
+                      "try {",
+                      "  const json = pm.response.json();",
+                      "  if (json?.data?.twoFactorEnabled) pm.collectionVariables.set('2fa_enabled', 'true');",
+                      "} catch (error) {",
+                      "  console.log('Error parsing 2FA response', error);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Disable 2FA",
+              "request": {
+                "method": "DELETE",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {"raw": "{{base_url}}/auth/2fa", "host": ["{{base_url}}"], "path": ["auth", "2fa"]},
+                "description": "Disable 2FA on user's account. Clears all 2FA-related data.\n\n**Request Body**: Empty (no body required)\n\n**Response Example (200)**:\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"message\": \"Two-factor authentication has been disabled\",\n    \"twoFactorEnabled\": false\n  }\n}\n```\n\n**Impact**: Once disabled, 2FA will not be required on next login unless re-enabled.\n\n**Error Cases**:\n- 401: Unauthorized (missing/invalid access token)\n- 404: User not found\n- 500: Failed to disable 2FA"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Learning",
+      "item": [
+        {
+          "name": "Learning Paths",
+          "item": [
+            {
+              "name": "Create Learning Path",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "body": {"mode": "raw", "raw": "{\n  \"targetLanguage\": \"es\",\n  \"profession\": \"software_engineer\",\n  \"proficiencyLevel\": \"beginner\"\n}"},
+                "url": {"raw": "{{base_url}}/learning/paths", "host": ["{{base_url}}"], "path": ["learning", "paths"]},
+                "description": "Create new learning path for a language and profession"
+              }
+            },
+            {
+              "name": "Get All Learning Paths",
+              "request": {
+                "method": "GET",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {"raw": "{{base_url}}/learning/paths", "host": ["{{base_url}}"], "path": ["learning", "paths"]},
+                "description": "Get all learning paths for the current learner"
+              }
+            },
+            {
+              "name": "Get Learning Path Details",
+              "request": {
+                "method": "GET",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {"raw": "{{base_url}}/learning/paths/{{learning_path_id}}", "host": ["{{base_url}}"], "path": ["learning", "paths", "{{learning_path_id}}"]},
+                "description": "Get specific learning path details"
+              }
+            },
+            {
+              "name": "Update Learning Path",
+              "request": {
+                "method": "PUT",
+                "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "body": {"mode": "raw", "raw": "{\n  \"proficiencyLevel\": \"intermediate\"\n}"},
+                "url": {"raw": "{{base_url}}/learning/paths/{{learning_path_id}}", "host": ["{{base_url}}"], "path": ["learning", "paths", "{{learning_path_id}}"]},
+                "description": "Update learning path settings"
+              }
+            },
+            {
+              "name": "Delete Learning Path",
+              "request": {
+                "method": "DELETE",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {"raw": "{{base_url}}/learning/paths/{{learning_path_id}}", "host": ["{{base_url}}"], "path": ["learning", "paths", "{{learning_path_id}}"]},
+                "description": "Delete a learning path"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Milestones",
+          "item": [
+            {
+              "name": "Get All Milestones for Path",
+              "request": {
+                "method": "GET",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {"raw": "{{base_url}}/learning/paths/{{learning_path_id}}/milestones", "host": ["{{base_url}}"], "path": ["learning", "paths", "{{learning_path_id}}", "milestones"]},
+                "description": "Get all milestones in a learning path"
+              }
+            },
+            {
+              "name": "Get Active Milestone",
+              "request": {
+                "method": "GET",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {"raw": "{{base_url}}/learning/paths/{{learning_path_id}}/milestone/active", "host": ["{{base_url}}"], "path": ["learning", "paths", "{{learning_path_id}}", "milestone", "active"]},
+                "description": "Get the currently active milestone for the learning path"
+              }
+            },
+            {
+              "name": "Advance to Next Milestone",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "body": {"mode": "raw", "raw": ""},
+                "url": {"raw": "{{base_url}}/learning/paths/{{learning_path_id}}/milestone/advance", "host": ["{{base_url}}"], "path": ["learning", "paths", "{{learning_path_id}}", "milestone", "advance"]},
+                "description": "Advance to the next milestone when current one is complete"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Progress",
+      "item": [
+        {
+          "name": "Record Attempt",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "body": {"mode": "raw", "raw": "{\n  \"wordId\": \"word-uuid-123\",\n  \"learningPathId\": \"{{learning_path_id}}\",\n  \"attemptType\": \"pronunciation\",\n  \"isCorrect\": true,\n  \"responseTime\": 2500\n}"},
+            "url": {"raw": "{{base_url}}/progress/record-attempt", "host": ["{{base_url}}"], "path": ["progress", "record-attempt"]},
+            "description": "Record a learning attempt and update word mastery score"
+          }
+        },
+        {
+          "name": "Get Progress Statistics",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/progress/stats/{{learning_path_id}}", "host": ["{{base_url}}"], "path": ["progress", "stats", "{{learning_path_id}}"]},
+            "description": "Get overall progress statistics for a learning path"
+          }
+        },
+        {
+          "name": "Get Mastery Breakdown",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/progress/mastery-breakdown/{{learning_path_id}}", "host": ["{{base_url}}"], "path": ["progress", "mastery-breakdown", "{{learning_path_id}}"]},
+            "description": "Get breakdown of word mastery levels (beginner, novice, intermediate, advanced, expert)"
+          }
+        },
+        {
+          "name": "Get Top Words",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/progress/top-words/{{learning_path_id}}", "host": ["{{base_url}}"], "path": ["progress", "top-words", "{{learning_path_id}}"]},
+            "description": "Get top mastered words with highest mastery scores"
+          }
+        },
+        {
+          "name": "Get Words Needing Work",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/progress/needs-work/{{learning_path_id}}", "host": ["{{base_url}}"], "path": ["progress", "needs-work", "{{learning_path_id}}"]},
+            "description": "Get words with lowest mastery scores that need most practice"
+          }
+        },
+        {
+          "name": "Get Daily Activity",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/progress/daily-activity/{{learning_path_id}}", "host": ["{{base_url}}"], "path": ["progress", "daily-activity", "{{learning_path_id}}"]},
+            "description": "Get daily activity log showing word attempts per day"
+          }
+        },
+        {
+          "name": "Get Milestone Progress",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/progress/milestone/{{learning_path_id}}/1", "host": ["{{base_url}}"], "path": ["progress", "milestone", "{{learning_path_id}}", "1"]},
+            "description": "Get progress for specific milestone (1, 2, or 3)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Vocabulary",
+      "item": [
+        {
+          "name": "Get Active Learning Window",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/vocabulary/active-window/{{learning_path_id}}", "host": ["{{base_url}}"], "path": ["vocabulary", "active-window", "{{learning_path_id}}"]},
+            "description": "Get the currently active learning window with words to practice"
+          }
+        },
+        {
+          "name": "Get Window Statistics",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/vocabulary/window-stats/{{learning_path_id}}", "host": ["{{base_url}}"], "path": ["vocabulary", "window-stats", "{{learning_path_id}}"]},
+            "description": "Get statistics about the active learning window"
+          }
+        },
+        {
+          "name": "Get Word Details",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/vocabulary/word/{{word_id}}", "host": ["{{base_url}}"], "path": ["vocabulary", "word", "{{word_id}}"]},
+            "description": "Get detailed information about a specific word including pronunciation and images"
+          }
+        },
+        {
+          "name": "Get Global Set Statistics",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/vocabulary/global-set/stats?language=es&profession=software_engineer", "host": ["{{base_url}}"], "path": ["vocabulary", "global-set", "stats"], "query": [{"key": "language", "value": "es"}, {"key": "profession", "value": "software_engineer"}]},
+            "description": "Get statistics about global vocabulary set for language and profession"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get All Notifications",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/notifications", "host": ["{{base_url}}"], "path": ["notifications"]},
+            "description": "Get all notifications for current learner with pagination"
+          }
+        },
+        {
+          "name": "Get Unread Notifications",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/notifications/unread", "host": ["{{base_url}}"], "path": ["notifications", "unread"]},
+            "description": "Get only unread notifications"
+          }
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/notifications/unread-count", "host": ["{{base_url}}"], "path": ["notifications", "unread-count"]},
+            "description": "Get count of unread notifications"
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/notifications/{{notification_id}}/read", "host": ["{{base_url}}"], "path": ["notifications", "{{notification_id}}", "read"]},
+            "description": "Mark a specific notification as read"
+          }
+        },
+        {
+          "name": "Mark All as Read",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/notifications/read-all", "host": ["{{base_url}}"], "path": ["notifications", "read-all"]},
+            "description": "Mark all notifications as read"
+          }
+        },
+        {
+          "name": "Delete Notification",
+          "request": {
+            "method": "DELETE",
+            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+            "url": {"raw": "{{base_url}}/notifications/{{notification_id}}", "host": ["{{base_url}}"], "path": ["notifications", "{{notification_id}}"]},
+            "description": "Delete a specific notification"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Content Generation",
+      "item": [
+        {
+          "name": "Generate Lesson",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"jobId\": \"job-lesson-001\",\n  \"payload\": {\n    \"learningPathId\": \"{{learning_path_id}}\",\n    \"learnerId\": \"{{learner_id}}\",\n    \"language\": \"es\",\n    \"profession\": \"software_engineer\",\n    \"wordsPerLesson\": 10,\n    \"globalSetId\": \"global-set-123\",\n    \"milestoneId\": \"milestone-123\",\n    \"baseLanguage\": \"en\",\n    \"excludeWords\": []\n  }\n}"},
+            "url": {"raw": "{{base_url}}/jobs/generate-lesson", "host": ["{{base_url}}"], "path": ["jobs", "generate-lesson"]},
+            "description": "Generate AI lesson content with vocabulary words"
+          }
+        },
+        {
+          "name": "Generate Story",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"jobId\": \"job-story-001\",\n  \"payload\": {\n    \"learnerId\": \"{{learner_id}}\",\n    \"milestoneId\": \"milestone-123\",\n    \"vocabulary\": [\n      {\n        \"word\": \"software\",\n        \"translation\": \"software\"\n      },\n      {\n        \"word\": \"developer\",\n        \"translation\": \"desarrollador\"\n      }\n    ],\n    \"profession\": \"software_engineer\",\n    \"language\": \"es\"\n  }\n}"},
+            "url": {"raw": "{{base_url}}/jobs/generate-story", "host": ["{{base_url}}"], "path": ["jobs", "generate-story"]},
+            "description": "Generate AI story content incorporating vocabulary words"
+          }
+        },
+        {
+          "name": "Generate Exercises",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\n  \"jobId\": \"job-exercises-001\",\n  \"payload\": {\n    \"learnerId\": \"{{learner_id}}\",\n    \"milestoneId\": \"milestone-123\",\n    \"language\": \"es\",\n    \"profession\": \"software_engineer\",\n    \"vocabulary\": [\n      \"software\",\n      \"developer\",\n      \"database\"\n    ]\n  }\n}"},
+            "url": {"raw": "{{base_url}}/jobs/generate-exercises", "host": ["{{base_url}}"], "path": ["jobs", "generate-exercises"]},
+            "description": "Generate AI exercises for vocabulary practice"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {"key": "base_url", "value": "http://localhost:3000", "type": "string"},
+    {"key": "access_token", "value": "", "type": "string", "description": "JWT access token - save after login/signup"},
+    {"key": "refresh_token", "value": "", "type": "string", "description": "JWT refresh token - save after login/signup"},
+    {"key": "onboarding_token", "value": "", "type": "string", "description": "JWT onboarding token - returned when nextStep is COMPLETE_ONBOARDING"},
+    {"key": "next_step", "value": "", "type": "string", "description": "Auth next step from backend: VERIFY_EMAIL, COMPLETE_ONBOARDING, or AUTHENTICATED"},
+    {"key": "learner_id", "value": "", "type": "string", "description": "Learner ID from profile"},
+    {"key": "learning_path_id", "value": "", "type": "string", "description": "Learning path ID from path endpoints"},
+    {"key": "word_id", "value": "", "type": "string", "description": "Word ID from vocabulary endpoints"},
+    {"key": "notification_id", "value": "", "type": "string", "description": "Notification ID from notification endpoints"},
+    {"key": "2fa_enabled", "value": "", "type": "string", "description": "Flag set to 'true' after successful 2FA verification"}
+  ]
+}

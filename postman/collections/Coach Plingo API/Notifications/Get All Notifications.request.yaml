@@ -1,0 +1,7 @@
+$kind: http-request
+description: Get all notifications for current learner with pagination
+url: "{{base_url}}/notifications"
+method: GET
+headers:
+  Authorization: Bearer {{access_token}}
+order: 1000

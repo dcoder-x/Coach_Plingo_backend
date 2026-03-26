@@ -1,0 +1,39 @@
+$kind: http-request
+description: >-
+  Disable 2FA on user's account. Clears all 2FA-related data.
+
+
+  **Request Body**: Empty (no body required)
+
+
+  **Response Example (200)**:
+
+  ```json
+
+  {
+    "success": true,
+    "data": {
+      "message": "Two-factor authentication has been disabled",
+      "twoFactorEnabled": false
+    }
+  }
+
+  ```
+
+
+  **Impact**: Once disabled, 2FA will not be required on next login unless
+  re-enabled.
+
+
+  **Error Cases**:
+
+  - 401: Unauthorized (missing/invalid access token)
+
+  - 404: User not found
+
+  - 500: Failed to disable 2FA
+url: "{{base_url}}/auth/2fa"
+method: DELETE
+headers:
+  Authorization: Bearer {{access_token}}
+order: 3000

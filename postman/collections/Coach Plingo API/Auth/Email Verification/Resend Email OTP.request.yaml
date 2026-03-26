@@ -1,0 +1,13 @@
+$kind: http-request
+description: Resend email verification OTP to user's email
+url: "{{base_url}}/auth/resend-otp"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "email": "newuser@example.com"
+    }
+order: 1000

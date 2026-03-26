@@ -1,0 +1,11 @@
+$kind: http-request
+description: Get statistics about global vocabulary set for language and profession
+url: "{{base_url}}/vocabulary/global-set/stats?language=es&profession=software_\
+  engineer"
+method: GET
+headers:
+  Authorization: Bearer {{access_token}}
+queryParams:
+  language: es
+  profession: software_engineer
+order: 4000

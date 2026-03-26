@@ -1,0 +1,56 @@
+$kind: http-request
+description: >-
+  Update user preferences (base language, profession, location). All fields
+  optional.
+
+
+  **Request Body**:
+
+  - `baseLanguage` (string, optional): User's native/base language code (e.g.,
+  'en', 'es', 'fr')
+
+  - `profession` (string, optional): User's profession (e.g.,
+  'software_engineer')
+
+  - `location` (string, optional): User's geographic location
+
+
+  **Response Example (200)**:
+
+  ```json
+
+  {
+    "success": true,
+    "data": {
+      "preferences": {
+        "baseLanguage": "en",
+        "profession": "software_engineer",
+        "location": "San Francisco"
+      }
+    }
+  }
+
+  ```
+
+
+  **Error Cases**:
+
+  - 400: Bad request (invalid field values)
+
+  - 401: Unauthorized
+
+  - 404: User not found
+url: "{{base_url}}/auth/preferences"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{access_token}}
+body:
+  type: text
+  content: |-
+    {
+      "baseLanguage": "en",
+      "profession": "software_engineer",
+      "location": "San Francisco"
+    }
+order: 4000

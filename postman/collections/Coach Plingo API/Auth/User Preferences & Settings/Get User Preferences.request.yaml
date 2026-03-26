@@ -1,0 +1,26 @@
+$kind: http-request
+description: |-
+  Retrieve user's current preferences (base language, profession, location).
+
+  **Response Example (200)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "preferences": {
+        "baseLanguage": "en",
+        "profession": "software_engineer",
+        "location": "Lagos"
+      }
+    }
+  }
+  ```
+
+  **Error Cases**:
+  - 401: Unauthorized (missing/invalid access token)
+  - 404: User not found
+url: "{{base_url}}/auth/preferences"
+method: GET
+headers:
+  Authorization: Bearer {{access_token}}
+order: 3000

@@ -1,0 +1,10 @@
+# Use this workspace to collaborate
+workspace:
+  id: ca7b5e4f-b327-4da0-96a2-19edb771baab
+
+localResources:
+  collections:
+    - ..\Coach_Plingo_Auth_API.postman_collection.json
+cloudResources:
+  collections:
+    ..\postman\collections\Coach Plingo API: d3ac5384-9027-413e-ac5a-76d9d1dd314b

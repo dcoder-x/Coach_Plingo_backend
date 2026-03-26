@@ -1,0 +1,31 @@
+$kind: http-request
+description: |-
+  Retrieve user's security and notification settings including 2FA status.
+
+  **Response Example (200)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "settings": {
+        "notifications": {
+          "inAppEnabled": true,
+          "emailEnabled": true
+        },
+        "security": {
+          "twoFactorEnabled": false,
+          "twoFactorMethod": null
+        }
+      }
+    }
+  }
+  ```
+
+  **Error Cases**:
+  - 401: Unauthorized
+  - 404: User not found
+url: "{{base_url}}/auth/settings"
+method: GET
+headers:
+  Authorization: Bearer {{access_token}}
+order: 5000

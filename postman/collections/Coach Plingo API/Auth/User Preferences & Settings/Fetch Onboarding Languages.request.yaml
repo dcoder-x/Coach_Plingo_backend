@@ -1,0 +1,34 @@
+$kind: http-request
+description: >-
+  Fetch list of available languages for onboarding. Can be called during signup
+  to pre-populate language selection.
+
+
+  **Response Example (200)**:
+
+  ```json
+
+  {
+    "success": true,
+    "data": {
+      "languages": [
+        {"code": "es", "name": "Spanish"},
+        {"code": "fr", "name": "French"},
+        {"code": "de", "name": "German"},
+        {"code": "zh", "name": "Mandarin"},
+        {"code": "ja", "name": "Japanese"}
+      ]
+    }
+  }
+
+  ```
+
+
+  **Error Cases**:
+
+  - 401: Unauthorized (missing/invalid access token)
+url: "{{base_url}}/auth/onboarding/languages"
+method: GET
+headers:
+  Authorization: Bearer {{access_token}}
+order: 1000

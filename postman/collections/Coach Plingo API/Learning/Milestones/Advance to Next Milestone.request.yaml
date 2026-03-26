@@ -1,0 +1,11 @@
+$kind: http-request
+description: Advance to the next milestone when current one is complete
+url: "{{base_url}}/learning/paths/{{learning_path_id}}/milestone/advance"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{access_token}}
+body:
+  type: text
+  content: ""
+order: 3000

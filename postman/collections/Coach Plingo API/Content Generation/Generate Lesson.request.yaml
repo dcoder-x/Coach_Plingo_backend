@@ -1,0 +1,24 @@
+$kind: http-request
+description: Generate AI lesson content with vocabulary words
+url: "{{base_url}}/jobs/generate-lesson"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "jobId": "job-lesson-001",
+      "payload": {
+        "learningPathId": "{{learning_path_id}}",
+        "learnerId": "{{learner_id}}",
+        "language": "es",
+        "profession": "software_engineer",
+        "wordsPerLesson": 10,
+        "globalSetId": "global-set-123",
+        "milestoneId": "milestone-123",
+        "baseLanguage": "en",
+        "excludeWords": []
+      }
+    }
+order: 1000

@@ -1,0 +1,7 @@
+$kind: http-request
+description: Get the currently active milestone for the learning path
+url: "{{base_url}}/learning/paths/{{learning_path_id}}/milestone/active"
+method: GET
+headers:
+  Authorization: Bearer {{access_token}}
+order: 2000
