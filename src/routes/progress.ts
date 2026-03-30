@@ -12,11 +12,11 @@ const controller = new ProgressController(prisma);
 
 // Param validators
 const pathIdSchema = z.object({
-  pathId: z.string().uuid('Invalid path ID'),
+  pathId: z.string().min(1, 'Invalid path ID'),
 });
 
 const milestoneProgressSchema = z.object({
-  pathId: z.string().uuid('Invalid path ID'),
+  pathId: z.string().min(1, 'Invalid path ID'),
   milestoneNumber: z.string().regex(/^[1-3]$/, 'Milestone number must be 1, 2, or 3'),
 });
 

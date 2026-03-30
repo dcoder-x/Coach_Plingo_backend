@@ -17,6 +17,7 @@ export class VocabularyController {
   async getActiveWindow(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { pathId } = req.params;
+      const requesterLearnerId = this.getRequesterLearnerId(req);
 
       // Get path to verify ownership and get baseLanguage
       const path = await this.prisma.learningPath.findUnique({
@@ -28,7 +29,7 @@ export class VocabularyController {
         throw AppError.notFound('Learning path not found');
       }
 
-      if (path.learnerId !== req.learnerId) {
+      if (path.learnerId !== requesterLearnerId) {
         throw AppError.forbidden('Not authorized');
       }
 
@@ -53,6 +54,7 @@ export class VocabularyController {
   async getWindowStats(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { pathId } = req.params;
+      const requesterLearnerId = this.getRequesterLearnerId(req);
 
       // Verify ownership
       const path = await this.prisma.learningPath.findUnique({
@@ -63,7 +65,7 @@ export class VocabularyController {
         throw AppError.notFound('Learning path not found');
       }
 
-      if (path.learnerId !== req.learnerId) {
+      if (path.learnerId !== requesterLearnerId) {
         throw AppError.forbidden('Not authorized');
       }
 
@@ -125,5 +127,17 @@ export class VocabularyController {
     } catch (error) {
       next(error);
     }
+  }
+
+  private getRequesterLearnerId(req: Request): string {
+    const learnerIdFromRequest = req.learnerId;
+    const learnerIdFromJwt = (req.user as { learnerId?: string } | undefined)?.learnerId;
+    const requesterLearnerId = learnerIdFromRequest || learnerIdFromJwt;
+
+    if (!requesterLearnerId) {
+      throw AppError.unauthorized('Not authenticated');
+    }
+
+    return requesterLearnerId;
   }
 }

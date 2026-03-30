@@ -12,7 +12,7 @@ const controller = new LearningController(prisma);
 
 // Param validators
 const pathIdSchema = z.object({
-  id: z.string().uuid('Invalid path ID'),
+  id: z.string().min(1, 'Invalid path ID'),
 });
 
 /**
@@ -43,7 +43,7 @@ router.get(
 router.get(
   '/paths/:id',
   authenticateToken,
-  validate({ params: pathIdSchema }),
+  // validate({ params: pathIdSchema }),
   (req, res, next) => controller.getPath(req, res, next),
 );
 
@@ -78,6 +78,39 @@ router.get(
   authenticateToken,
   validate({ params: pathIdSchema }),
   (req, res, next) => controller.getActiveMilestone(req, res, next),
+);
+
+/**
+ * GET /learning/paths/:id/readiness
+ * Check if first lesson content is ready after path creation
+ */
+router.get(
+  '/paths/:id/readiness',
+  authenticateToken,
+  validate({ params: pathIdSchema }),
+  (req, res, next) => controller.getPathReadiness(req, res, next),
+);
+
+/**
+ * GET /learning/paths/:id/current-session
+ * Get current orchestrated lesson session payload
+ */
+router.get(
+  '/paths/:id/current-session',
+  authenticateToken,
+  validate({ params: pathIdSchema }),
+  (req, res, next) => controller.getCurrentSession(req, res, next),
+);
+
+/**
+ * POST /learning/paths/:id/current-session/complete
+ * Submit a full lesson session completion payload
+ */
+router.post(
+  '/paths/:id/current-session/complete',
+  authenticateToken,
+  validate({ params: pathIdSchema }),
+  (req, res, next) => controller.completeCurrentSession(req, res, next),
 );
 
 /**

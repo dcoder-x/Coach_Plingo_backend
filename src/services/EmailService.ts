@@ -8,7 +8,7 @@ export class EmailService {
 
   constructor() {
     this.logger = new SimpleLogger('EmailService');
-    this.fromAddress = process.env.EMAIL_FROM || 'no-reply@coachplingo.app';
+    this.fromAddress = process.env.EMAIL_FROM || 'no-reply@coachplingo.com';
     this.transporter = this.createTransporter();
   }
 
@@ -33,6 +33,11 @@ export class EmailService {
     const port = Number(process.env.SMTP_PORT || 587);
     const user = process.env.SMTP_USER;
     const pass = process.env.SMTP_PASS;
+    const secureFromEnv = process.env.SMTP_SECURE;
+    const secure =
+      typeof secureFromEnv === 'string'
+        ? secureFromEnv.toLowerCase() === 'true'
+        : port === 465;
 
     if (!host || !user || !pass) {
       this.logger.warn('SMTP not configured. OTP emails will be logged in development mode.');
@@ -42,7 +47,7 @@ export class EmailService {
     return nodemailer.createTransport({
       host,
       port,
-      secure: port === 465,
+      secure,
       auth: {
         user,
         pass,

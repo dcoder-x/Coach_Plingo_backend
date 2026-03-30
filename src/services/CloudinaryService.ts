@@ -6,6 +6,11 @@ export interface UploadedImage {
   publicId: string;
 }
 
+export interface UploadedAudio {
+  secureUrl: string;
+  publicId: string;
+}
+
 export class CloudinaryService {
   private readonly isConfigured: boolean;
 
@@ -34,6 +39,26 @@ export class CloudinaryService {
     const result = await cloudinary.uploader.upload(dataUri, {
       folder,
       resource_type: 'image',
+    });
+
+    return {
+      secureUrl: result.secure_url,
+      publicId: result.public_id,
+    };
+  }
+
+  async uploadAudioDataUri(dataUri: string, folder: string): Promise<UploadedAudio> {
+    if (!this.isConfigured) {
+      throw AppError.internal('Cloudinary is not configured');
+    }
+
+    if (typeof dataUri !== 'string' || !dataUri.startsWith('data:audio/')) {
+      throw AppError.badRequest('Invalid audio payload format');
+    }
+
+    const result = await cloudinary.uploader.upload(dataUri, {
+      folder,
+      resource_type: 'video',
     });
 
     return {

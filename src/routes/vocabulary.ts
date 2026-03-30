@@ -11,11 +11,11 @@ const controller = new VocabularyController(prisma);
 
 // Param and query validators
 const pathIdSchema = z.object({
-  pathId: z.string().uuid('Invalid path ID'),
+  pathId: z.string().min(1, 'Invalid path ID'),
 });
 
 const wordIdSchema = z.object({
-  wordId: z.string().uuid('Invalid word ID'),
+  wordId: z.string().min(1, 'Invalid word ID'),
 });
 
 const globalSetQuerySchema = z.object({
@@ -31,7 +31,7 @@ const globalSetQuerySchema = z.object({
 router.get(
   '/active-window/:pathId',
   authenticateToken,
-  validate({ params: pathIdSchema }),
+  // validate({ params: pathIdSchema }),
   (req, res, next) => controller.getActiveWindow(req, res, next),
 );
 

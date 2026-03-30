@@ -440,7 +440,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"currentPassword\": \"SecurePass123!\",\n  \"newPassword\": \"NewSecurePass456!\"\n}"
+                  "raw": "{\n  \"currentPassword\": \"SecurePass123!\",\n  \"newPassword\": \"SecurePass456!\"\n}"
                 },
                 "url": "{{base_url}}/auth/change-password",
                 "description": "Change account password (requires current password)\n\n### Sample Request Body\n```json\n{\n  \"currentPassword\": \"SecurePass123!\",\n  \"newPassword\": \"NewSecurePass456!\"\n}\n```\n\n### Sample Success Response\n```json\n{\n  \"success\": true,\n  \"message\": \"Change Password successful\",\n  \"data\": {\n    \"operation\": \"Change Password\",\n    \"method\": \"POST\",\n    \"endpoint\": \"{{base_url}}/auth/change-password\",\n    \"sample\": true,\n    \"timestamp\": \"2026-03-26T00:00:00.000Z\"\n  }\n}\n```\n\n### Sample Error Response\n```json\n{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Validation failed\",\n    \"details\": [\n      \"Sample validation error detail\"\n    ]\n  }\n}\n```"
@@ -550,7 +550,7 @@
                     {
                       "key": "avatar",
                       "type": "file",
-                      "src": "/path/to/your/image.jpg"
+                      "src": ""
                     }
                   ]
                 },
@@ -1310,7 +1310,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"NewSecurePass456!\"\n}"
+                  "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"SecurePass456!\"\n}"
                 },
                 "url": "{{base_url}}/auth/reset-password",
                 "description": "Reset password using OTP (public endpoint, no auth required)\n\n### Sample Request Body\n```json\n{\n  \"email\": \"newuser@example.com\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"NewSecurePass456!\"\n}\n```\n\n### Sample Success Response\n```json\n{\n  \"success\": true,\n  \"message\": \"Reset Password with OTP successful\",\n  \"data\": {\n    \"operation\": \"Reset Password with OTP\",\n    \"method\": \"POST\",\n    \"endpoint\": \"{{base_url}}/auth/reset-password\",\n    \"sample\": true,\n    \"timestamp\": \"2026-03-26T00:00:00.000Z\"\n  }\n}\n```\n\n### Sample Error Response\n```json\n{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Validation failed\",\n    \"details\": [\n      \"Sample validation error detail\"\n    ]\n  }\n}\n```"
@@ -1397,7 +1397,7 @@
                     {
                       "key": "avatar",
                       "type": "file",
-                      "src": "/path/to/your/image.jpg"
+                      "src": ""
                     }
                   ]
                 },
@@ -1596,7 +1596,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"oauthProvider\": \"google\",\n  \"email\": \"user@gmail.com\",\n  \"fullName\": \"Google User\",\n  \"oauthId\": \"google_oauth_id_12345\"\n}"
+                  "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"fullName\": \"John Doe\",\n  \"oauthProvider\": \"google\",\n  \"oauthId\": \"google-oauth-id-123\"\n}"
                 },
                 "url": "{{base_url}}/auth/oauth",
                 "description": "OAuth login with provider details\n\n### Sample Request Body\n```json\n{\n  \"oauthProvider\": \"google\",\n  \"email\": \"user@gmail.com\",\n  \"fullName\": \"Google User\",\n  \"oauthId\": \"google_oauth_id_12345\"\n}\n```\n\n### Sample Success Response\n```json\n{\n  \"success\": true,\n  \"message\": \"OAuth Login successful\",\n  \"data\": {\n    \"operation\": \"OAuth Login\",\n    \"method\": \"POST\",\n    \"endpoint\": \"{{base_url}}/auth/oauth\",\n    \"sample\": true,\n    \"timestamp\": \"2026-03-26T00:00:00.000Z\"\n  }\n}\n```\n\n### Sample Error Response\n```json\n{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Validation failed\",\n    \"details\": [\n      \"Sample validation error detail\"\n    ]\n  }\n}\n```"
@@ -1903,7 +1903,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"baseLanguage\": \"en\",\n  \"profession\": \"software_engineer\",\n  \"location\": \"San Francisco\"\n}"
+                  "raw": "{\n  \"baseLanguage\": \"en\",\n  \"profession\": \"software_engineer\",\n  \"location\": \"Lagos\"\n}"
                 },
                 "url": "{{base_url}}/auth/preferences",
                 "description": "Update user preferences (base language, profession, location). All fields optional.\n\n**Request Body**:\n- `baseLanguage` (string, optional): User's native/base language code (e.g., 'en', 'es', 'fr')\n- `profession` (string, optional): User's profession (e.g., 'software_engineer')\n- `location` (string, optional): User's geographic location\n\n**Response Example (200)**:\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"preferences\": {\n      \"baseLanguage\": \"en\",\n      \"profession\": \"software_engineer\",\n      \"location\": \"San Francisco\"\n    }\n  }\n}\n```\n\n**Error Cases**:\n- 400: Bad request (invalid field values)\n- 401: Unauthorized\n- 404: User not found\n\n### Sample Request Body\n```json\n{\n  \"baseLanguage\": \"en\",\n  \"profession\": \"software_engineer\",\n  \"location\": \"San Francisco\"\n}\n```\n\n### Sample Success Response\n```json\n{\n  \"success\": true,\n  \"message\": \"Update User Preferences successful\",\n  \"data\": {\n    \"operation\": \"Update User Preferences\",\n    \"method\": \"PUT\",\n    \"endpoint\": \"{{base_url}}/auth/preferences\",\n    \"sample\": true,\n    \"timestamp\": \"2026-03-26T00:00:00.000Z\"\n  }\n}\n```\n\n### Sample Error Response\n```json\n{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Validation failed\",\n    \"details\": [\n      \"Sample validation error detail\"\n    ]\n  }\n}\n```"
@@ -2059,7 +2059,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"inAppEnabled\": true,\n  \"emailEnabled\": false\n}"
+                  "raw": "{\n  \"inAppEnabled\": true,\n  \"emailEnabled\": true\n}"
                 },
                 "url": "{{base_url}}/auth/settings/notifications",
                 "description": "Update notification preferences. Both fields optional.\n\n**Request Body**:\n- `inAppEnabled` (boolean, optional): Enable/disable in-app notifications\n- `emailEnabled` (boolean, optional): Enable/disable email notifications\n\n**Response Example (200)**:\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"notifications\": {\n      \"inAppEnabled\": true,\n      \"emailEnabled\": false\n    }\n  }\n}\n```\n\n**Error Cases**:\n- 400: Bad request (invalid field types)\n- 401: Unauthorized\n- 404: User not found\n\n### Sample Request Body\n```json\n{\n  \"inAppEnabled\": true,\n  \"emailEnabled\": false\n}\n```\n\n### Sample Success Response\n```json\n{\n  \"success\": true,\n  \"message\": \"Update Notification Settings successful\",\n  \"data\": {\n    \"operation\": \"Update Notification Settings\",\n    \"method\": \"PATCH\",\n    \"endpoint\": \"{{base_url}}/auth/settings/notifications\",\n    \"sample\": true,\n    \"timestamp\": \"2026-03-26T00:00:00.000Z\"\n  }\n}\n```\n\n### Sample Error Response\n```json\n{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Validation failed\",\n    \"details\": [\n      \"Sample validation error detail\"\n    ]\n  }\n}\n```"
@@ -2415,7 +2415,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"targetLanguage\": \"es\",\n  \"profession\": \"software_engineer\",\n  \"proficiencyLevel\": \"beginner\"\n}"
+                  "raw": "{\n  \"language\": \"es\",\n  \"profession\": \"healthcare\",\n  \"wordsPerLesson\": 20\n}"
                 },
                 "url": "{{base_url}}/learning/paths",
                 "description": "Create new learning path for a language and profession\n\n### Sample Request Body\n```json\n{\n  \"targetLanguage\": \"es\",\n  \"profession\": \"software_engineer\",\n  \"proficiencyLevel\": \"beginner\"\n}\n```\n\n### Sample Success Response\n```json\n{\n  \"success\": true,\n  \"message\": \"Create Learning Path successful\",\n  \"data\": {\n    \"operation\": \"Create Learning Path\",\n    \"method\": \"POST\",\n    \"endpoint\": \"{{base_url}}/learning/paths\",\n    \"sample\": true,\n    \"timestamp\": \"2026-03-26T00:00:00.000Z\"\n  }\n}\n```\n\n### Sample Error Response\n```json\n{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Validation failed\",\n    \"details\": [\n      \"Sample validation error detail\"\n    ]\n  }\n}\n```"
@@ -2637,7 +2637,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"proficiencyLevel\": \"intermediate\"\n}"
+                  "raw": "{\n  \"status\": \"ACTIVE\",\n  \"wordsPerLesson\": 20\n}"
                 },
                 "url": "{{base_url}}/learning/paths/{{learning_path_id}}",
                 "description": "Update learning path settings\n\n### Sample Request Body\n```json\n{\n  \"proficiencyLevel\": \"intermediate\"\n}\n```\n\n### Sample Success Response\n```json\n{\n  \"success\": true,\n  \"message\": \"Update Learning Path successful\",\n  \"data\": {\n    \"operation\": \"Update Learning Path\",\n    \"method\": \"PUT\",\n    \"endpoint\": \"{{base_url}}/learning/paths/{{learning_path_id}}\",\n    \"sample\": true,\n    \"timestamp\": \"2026-03-26T00:00:00.000Z\"\n  }\n}\n```\n\n### Sample Error Response\n```json\n{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Validation failed\",\n    \"details\": [\n      \"Sample validation error detail\"\n    ]\n  }\n}\n```"
@@ -3005,6 +3005,107 @@
               ]
             }
           ]
+        },
+        {
+          "name": "Lesson Sessions",
+          "item": [
+            {
+              "name": "Get Current Session",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": "{{base_url}}/learning/paths/{{learning_path_id}}/current-session",
+                "description": "Fetch a fully orchestrated lesson session for the learner current milestone. Returns PREPARING until content is ready."
+              },
+              "response": [
+                {
+                  "name": "Success Example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{access_token}}"
+                      }
+                    ],
+                    "url": "{{base_url}}/learning/paths/{{learning_path_id}}/current-session"
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"sessionId\": \"path:{{learning_path_id}}:milestone:1\",\n    \"lessonType\": \"VOCABULARY_SPRINT\",\n    \"status\": \"READY\",\n    \"ready\": true,\n    \"milestone\": {\n      \"id\": \"{{milestone_id}}\",\n      \"milestoneNumber\": 1,\n      \"type\": \"VOCABULARY_SPRINT\"\n    },\n    \"progress\": {\n      \"progress\": 4,\n      \"masteredWords\": 20,\n      \"targetWords\": 500\n    },\n    \"words\": [\n      {\n        \"index\": 1,\n        \"wordId\": \"{{word_id}}\",\n        \"text\": \"objetivo\",\n        \"translation\": \"goal\",\n        \"pronunciationAudioUrl\": \"https://res.cloudinary.com/demo/video/upload/coach-plingo/pronunciation/sample.mp3\",\n        \"examplePhrases\": [\n          \"objetivo esencial\"\n        ],\n        \"exampleSentences\": [\n          \"Este objetivo guía nuestro trabajo diario.\"\n        ],\n        \"difficulty\": \"BEGINNER\",\n        \"tags\": [\n          \"planning\",\n          \"work\"\n        ],\n        \"masteryScore\": 0,\n        \"pronunciationScore\": 0,\n        \"status\": \"ACTIVE\"\n      }\n    ],\n    \"steps\": [\n      {\n        \"stepId\": \"{{word_id}}:intro\",\n        \"type\": \"INTRODUCE_WORD\",\n        \"wordId\": \"{{word_id}}\",\n        \"prompt\": \"Learn the word objetivo\",\n        \"audioUrl\": \"https://res.cloudinary.com/demo/video/upload/coach-plingo/pronunciation/sample.mp3\",\n        \"order\": 1\n      },\n      {\n        \"stepId\": \"{{word_id}}:pronounce\",\n        \"type\": \"PRONOUNCE_WORD\",\n        \"wordId\": \"{{word_id}}\",\n        \"prompt\": \"Pronounce objetivo\",\n        \"audioUrl\": \"https://res.cloudinary.com/demo/video/upload/coach-plingo/pronunciation/sample.mp3\",\n        \"order\": 2\n      },\n      {\n        \"stepId\": \"{{word_id}}:usage\",\n        \"type\": \"USE_IN_SENTENCE\",\n        \"wordId\": \"{{word_id}}\",\n        \"prompt\": \"Este objetivo guía nuestro trabajo diario.\",\n        \"order\": 3\n      }\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Complete Current Session",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"lessonType\": \"VOCABULARY_SPRINT\",\n  \"wordResults\": [\n    {\n      \"wordId\": \"{{word_id}}\",\n      \"meaningAccuracy\": 9,\n      \"usageAccuracy\": 8,\n      \"pronunciationScore\": 8.5,\n      \"responseTime\": 2200\n    }\n  ]\n}"
+                },
+                "url": "{{base_url}}/learning/paths/{{learning_path_id}}/current-session/complete",
+                "description": "Submit a full lesson session in one payload. For milestone 1, send wordResults; later milestones accept questionResponses or pronunciationResults."
+              },
+              "response": [
+                {
+                  "name": "Success Example",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{access_token}}"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"lessonType\": \"VOCABULARY_SPRINT\",\n  \"wordResults\": [\n    {\n      \"wordId\": \"{{word_id}}\",\n      \"meaningAccuracy\": 9,\n      \"usageAccuracy\": 8,\n      \"pronunciationScore\": 8.5,\n      \"responseTime\": 2200\n    }\n  ]\n}"
+                    },
+                    "url": "{{base_url}}/learning/paths/{{learning_path_id}}/current-session/complete"
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"lessonType\": \"VOCABULARY_SPRINT\",\n    \"completedWords\": [\n      {\n        \"wordId\": \"{{word_id}}\",\n        \"masteryScore\": 8.45,\n        \"status\": \"MASTERED\",\n        \"attemptCount\": 1\n      }\n    ],\n    \"progress\": {\n      \"progress\": 4.2,\n      \"masteredWords\": 21,\n      \"targetWords\": 500\n    },\n    \"nextSession\": {\n      \"sessionId\": \"path:{{learning_path_id}}:milestone:1\",\n      \"lessonType\": \"VOCABULARY_SPRINT\",\n      \"status\": \"READY\",\n      \"ready\": true\n    }\n  }\n}"
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -3027,7 +3128,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"wordId\": \"word-uuid-123\",\n  \"learningPathId\": \"{{learning_path_id}}\",\n  \"attemptType\": \"pronunciation\",\n  \"isCorrect\": true,\n  \"responseTime\": 2500\n}"
+              "raw": "{\n  \"wordId\": \"{{word_id}}\",\n  \"learningPathId\": \"{{learning_path_id}}\",\n  \"usageAccuracy\": 8.5,\n  \"pronunciationScore\": 7.8,\n  \"responseTime\": 3200\n}"
             },
             "url": "{{base_url}}/progress/record-attempt",
             "description": "Record a learning attempt and update word mastery score\n\n### Sample Request Body\n```json\n{\n  \"wordId\": \"word-uuid-123\",\n  \"learningPathId\": \"{{learning_path_id}}\",\n  \"attemptType\": \"pronunciation\",\n  \"isCorrect\": true,\n  \"responseTime\": 2500\n}\n```\n\n### Sample Success Response\n```json\n{\n  \"success\": true,\n  \"message\": \"Record Attempt successful\",\n  \"data\": {\n    \"operation\": \"Record Attempt\",\n    \"method\": \"POST\",\n    \"endpoint\": \"{{base_url}}/progress/record-attempt\",\n    \"sample\": true,\n    \"timestamp\": \"2026-03-26T00:00:00.000Z\"\n  }\n}\n```\n\n### Sample Error Response\n```json\n{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Validation failed\",\n    \"details\": [\n      \"Sample validation error detail\"\n    ]\n  }\n}\n```"
@@ -4184,7 +4285,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"jobId\": \"job-lesson-001\",\n  \"payload\": {\n    \"learningPathId\": \"{{learning_path_id}}\",\n    \"learnerId\": \"{{learner_id}}\",\n    \"language\": \"es\",\n    \"profession\": \"software_engineer\",\n    \"wordsPerLesson\": 10,\n    \"globalSetId\": \"global-set-123\",\n    \"milestoneId\": \"milestone-123\",\n    \"baseLanguage\": \"en\",\n    \"excludeWords\": []\n  }\n}"
+              "raw": "{\n  \"jobId\": \"{{job_id}}\",\n  \"payload\": {\n    \"learningPathId\": \"{{learning_path_id}}\",\n    \"learnerId\": \"{{learner_id}}\",\n    \"language\": \"es\",\n    \"profession\": \"healthcare\",\n    \"wordsPerLesson\": 20,\n    \"globalSetId\": \"{{global_set_id}}\",\n    \"milestoneId\": \"{{milestone_id}}\",\n    \"baseLanguage\": \"en\",\n    \"excludeWords\": []\n  }\n}"
             },
             "url": "{{base_url}}/jobs/generate-lesson",
             "description": "Generate AI lesson content with vocabulary words\n\n### Sample Request Body\n```json\n{\n  \"jobId\": \"job-lesson-001\",\n  \"payload\": {\n    \"learningPathId\": \"{{learning_path_id}}\",\n    \"learnerId\": \"{{learner_id}}\",\n    \"language\": \"es\",\n    \"profession\": \"software_engineer\",\n    \"wordsPerLesson\": 10,\n    \"globalSetId\": \"global-set-123\",\n    \"milestoneId\": \"milestone-123\",\n    \"baseLanguage\": \"en\",\n    \"excludeWords\": []\n  }\n}\n```\n\n### Sample Success Response\n```json\n{\n  \"success\": true,\n  \"message\": \"Generate Lesson successful\",\n  \"data\": {\n    \"operation\": \"Generate Lesson\",\n    \"method\": \"POST\",\n    \"endpoint\": \"{{base_url}}/jobs/generate-lesson\",\n    \"sample\": true,\n    \"timestamp\": \"2026-03-26T00:00:00.000Z\"\n  }\n}\n```\n\n### Sample Error Response\n```json\n{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Validation failed\",\n    \"details\": [\n      \"Sample validation error detail\"\n    ]\n  }\n}\n```"
@@ -4262,7 +4363,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"jobId\": \"job-story-001\",\n  \"payload\": {\n    \"learnerId\": \"{{learner_id}}\",\n    \"milestoneId\": \"milestone-123\",\n    \"vocabulary\": [\n      {\n        \"word\": \"software\",\n        \"translation\": \"software\"\n      },\n      {\n        \"word\": \"developer\",\n        \"translation\": \"desarrollador\"\n      }\n    ],\n    \"profession\": \"software_engineer\",\n    \"language\": \"es\"\n  }\n}"
+              "raw": "{\n  \"jobId\": \"{{job_id}}\",\n  \"payload\": {\n    \"learnerId\": \"{{learner_id}}\",\n    \"milestoneId\": \"{{milestone_id}}\",\n    \"vocabulary\": [\n      {\n        \"word\": \"consulta\",\n        \"translation\": \"consultation\"\n      }\n    ],\n    \"profession\": \"healthcare\",\n    \"language\": \"es\"\n  }\n}"
             },
             "url": "{{base_url}}/jobs/generate-story",
             "description": "Generate AI story content incorporating vocabulary words\n\n### Sample Request Body\n```json\n{\n  \"jobId\": \"job-story-001\",\n  \"payload\": {\n    \"learnerId\": \"{{learner_id}}\",\n    \"milestoneId\": \"milestone-123\",\n    \"vocabulary\": [\n      {\n        \"word\": \"software\",\n        \"translation\": \"software\"\n      },\n      {\n        \"word\": \"developer\",\n        \"translation\": \"desarrollador\"\n      }\n    ],\n    \"profession\": \"software_engineer\",\n    \"language\": \"es\"\n  }\n}\n```\n\n### Sample Success Response\n```json\n{\n  \"success\": true,\n  \"message\": \"Generate Story successful\",\n  \"data\": {\n    \"operation\": \"Generate Story\",\n    \"method\": \"POST\",\n    \"endpoint\": \"{{base_url}}/jobs/generate-story\",\n    \"sample\": true,\n    \"timestamp\": \"2026-03-26T00:00:00.000Z\"\n  }\n}\n```\n\n### Sample Error Response\n```json\n{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Validation failed\",\n    \"details\": [\n      \"Sample validation error detail\"\n    ]\n  }\n}\n```"
@@ -4340,7 +4441,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"jobId\": \"job-exercises-001\",\n  \"payload\": {\n    \"learnerId\": \"{{learner_id}}\",\n    \"milestoneId\": \"milestone-123\",\n    \"language\": \"es\",\n    \"profession\": \"software_engineer\",\n    \"vocabulary\": [\n      \"software\",\n      \"developer\",\n      \"database\"\n    ]\n  }\n}"
+              "raw": "{\n  \"jobId\": \"{{job_id}}\",\n  \"payload\": {\n    \"learnerId\": \"{{learner_id}}\",\n    \"milestoneId\": \"{{milestone_id}}\",\n    \"language\": \"es\",\n    \"profession\": \"healthcare\",\n    \"vocabulary\": [\n      \"consulta\",\n      \"síntoma\"\n    ]\n  }\n}"
             },
             "url": "{{base_url}}/jobs/generate-exercises",
             "description": "Generate AI exercises for vocabulary practice\n\n### Sample Request Body\n```json\n{\n  \"jobId\": \"job-exercises-001\",\n  \"payload\": {\n    \"learnerId\": \"{{learner_id}}\",\n    \"milestoneId\": \"milestone-123\",\n    \"language\": \"es\",\n    \"profession\": \"software_engineer\",\n    \"vocabulary\": [\n      \"software\",\n      \"developer\",\n      \"database\"\n    ]\n  }\n}\n```\n\n### Sample Success Response\n```json\n{\n  \"success\": true,\n  \"message\": \"Generate Exercises successful\",\n  \"data\": {\n    \"operation\": \"Generate Exercises\",\n    \"method\": \"POST\",\n    \"endpoint\": \"{{base_url}}/jobs/generate-exercises\",\n    \"sample\": true,\n    \"timestamp\": \"2026-03-26T00:00:00.000Z\"\n  }\n}\n```\n\n### Sample Error Response\n```json\n{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Validation failed\",\n    \"details\": [\n      \"Sample validation error detail\"\n    ]\n  }\n}\n```"
@@ -4403,6 +4504,163 @@
               ],
               "cookie": [],
               "body": "{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Validation failed\",\n    \"details\": [\n      \"Sample validation error detail\"\n    ]\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Pronunciation",
+      "item": [
+        {
+          "name": "Get Reference Audio",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/pronunciation/reference-audio?word=consulta&language=es",
+            "description": "Fetch cached pronunciation audio for a word or generate it via ElevenLabs and cache globally."
+          },
+          "response": [
+            {
+              "name": "Success Example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": "{{base_url}}/pronunciation/reference-audio?word=consulta&language=es"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"source\": \"cache\",\n    \"wordId\": \"{{word_id}}\",\n    \"word\": \"consulta\",\n    \"language\": \"es\",\n    \"audioUrl\": \"data:audio/mpeg;base64,....\",\n    \"ipa\": null\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Record Pronunciation Attempt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"exerciseId\": \"{{exercise_id}}\",\n  \"recordedAudioUrl\": \"https://cdn.example.com/audio/attempt-001.webm\",\n  \"accuracyScore\": 82.4\n}"
+            },
+            "url": "{{base_url}}/pronunciation/attempts",
+            "description": "Persist a pronunciation attempt where accuracy score is already computed externally (0-100)."
+          },
+          "response": [
+            {
+              "name": "Success Example",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"exerciseId\": \"{{exercise_id}}\",\n  \"recordedAudioUrl\": \"https://cdn.example.com/audio/attempt-001.webm\",\n  \"accuracyScore\": 82.4\n}"
+                },
+                "url": "{{base_url}}/pronunciation/attempts"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"attempt\": {\n      \"id\": \"{{attempt_id}}\",\n      \"exerciseId\": \"{{exercise_id}}\",\n      \"accuracyScore\": 8.24,\n      \"passed\": true,\n      \"attemptedAt\": \"2026-03-28T00:00:00.000Z\"\n    },\n    \"milestoneProgress\": {\n      \"totalExercises\": 10,\n      \"passedExercises\": 4,\n      \"isComplete\": false\n    },\n    \"pathCompleted\": false\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Score Pronunciation Attempt (Server Side)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"exerciseId\": \"{{exercise_id}}\",\n  \"recordedAudioUrl\": \"https://cdn.example.com/audio/attempt-002.webm\",\n  \"transcript\": \"consulta medica urgente\"\n}"
+            },
+            "url": "{{base_url}}/pronunciation/score-attempt",
+            "description": "Compute score on backend from transcript similarity (or pass externalAccuracyScore), then persist attempt."
+          },
+          "response": [
+            {
+              "name": "Success Example",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"exerciseId\": \"{{exercise_id}}\",\n  \"recordedAudioUrl\": \"https://cdn.example.com/audio/attempt-002.webm\",\n  \"transcript\": \"consulta medica urgente\"\n}"
+                },
+                "url": "{{base_url}}/pronunciation/score-attempt"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"attempt\": {\n      \"id\": \"{{attempt_id}}\",\n      \"exerciseId\": \"{{exercise_id}}\",\n      \"accuracyScore\": 9.1,\n      \"passed\": true,\n      \"attemptedAt\": \"2026-03-28T00:00:00.000Z\"\n    },\n    \"scoringSource\": \"transcript_similarity\",\n    \"transcriptUsed\": \"consulta medica urgente\",\n    \"targetText\": \"consulta médica urgente\",\n    \"milestoneProgress\": {\n      \"totalExercises\": 10,\n      \"passedExercises\": 5,\n      \"isComplete\": false\n    },\n    \"pathCompleted\": false\n  }\n}"
             }
           ]
         }

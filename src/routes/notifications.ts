@@ -11,7 +11,7 @@ const controller = new NotificationController(prisma);
 
 // Param validators
 const notificationIdSchema = z.object({
-  id: z.string().uuid('Invalid notification ID'),
+  id: z.string().min(1, 'Invalid notification ID'),
 });
 
 /**

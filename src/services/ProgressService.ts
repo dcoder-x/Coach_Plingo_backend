@@ -3,6 +3,8 @@ import { PrismaClient } from '@prisma/client';
 import { AppError } from '../utils/AppError';
 import { SimpleLogger } from '../utils/Logger';
 import { MasterySignals } from '../types';
+import { LearningService } from './LearningService';
+import { VocabularyService } from './VocabularyService';
 
 type DecimalLike = number | { toString(): string };
 
@@ -22,8 +24,8 @@ interface LearnerWordStateRecord {
 }
 
 export const recordAttemptSchema = z.object({
-  wordId: z.string().uuid('Invalid word ID'),
-  learningPathId: z.string().uuid('Invalid learning path ID'),
+  wordId: z.string().min(1, 'Invalid word ID'),
+  learningPathId: z.string().min(1, 'Invalid learning path ID'),
   usageAccuracy: z.number().min(0).max(10).optional(), // 0-10 from phrase/sentence exercises
   pronunciationScore: z.number().min(0).max(10).optional(), // 0-10 from ElevenLabs
   responseTime: z.number().positive().optional(), // ms
@@ -42,6 +44,11 @@ export interface ProgressStats {
 export class ProgressService {
   private prisma: PrismaClient;
   private logger: SimpleLogger;
+  private learningService: LearningService;
+  private vocabularyService: VocabularyService;
+
+  // Vocabulary sprint word target for milestone 1
+  private readonly MILESTONE_1_TARGET = 500;
 
   // Mastery calculation weights
   private readonly WEIGHTS = {
@@ -56,6 +63,8 @@ export class ProgressService {
   constructor(prisma: PrismaClient) {
     this.prisma = prisma;
     this.logger = new SimpleLogger('ProgressService');
+    this.learningService = new LearningService(prisma);
+    this.vocabularyService = new VocabularyService(prisma);
   }
 
   /**
@@ -85,6 +94,7 @@ export class ProgressService {
 
     const newMasteryScore = this.calculateMasteryScore(signals);
     const isMastered = newMasteryScore >= this.MASTERY_THRESHOLD;
+    const becameMastered = wordState.status !== 'MASTERED' && isMastered;
 
     // Update word state
     const updated = await this.prisma.learnerWordState.update({
@@ -103,7 +113,52 @@ export class ProgressService {
       `Recorded attempt for word ${input.wordId}: mastery ${newMasteryScore.toFixed(2)}/10 (isMastered: ${isMastered})`,
     );
 
+    // If word just crossed mastery threshold, check whether milestone 1 sprint is complete
+    if (becameMastered) {
+      this.vocabularyService.promoteNextWord(input.learningPathId).catch((err) => {
+        this.logger.error(
+          `Window refill failed for path ${input.learningPathId}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      });
+
+      this.checkMilestone1Completion(input.learningPathId).catch((err) => {
+        this.logger.error(
+          `Milestone advancement check failed for path ${input.learningPathId}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      });
+    }
+
     return updated;
+  }
+
+  /**
+   * Check if Milestone 1 (Vocabulary Sprint) has reached the 500-word target.
+   * If so, automatically advance the path to Milestone 2.
+   * Only runs when the path is still on milestone 1 to avoid double-advances.
+   */
+  private async checkMilestone1Completion(learningPathId: string): Promise<void> {
+    const path = await this.prisma.learningPath.findUnique({
+      where: { id: learningPathId },
+      select: { currentMilestone: true },
+    });
+
+    // Only act when the path is still on milestone 1
+    if (!path || path.currentMilestone !== 1) return;
+
+    const masteredCount = await this.prisma.learnerWordState.count({
+      where: { learningPathId, status: 'MASTERED' },
+    });
+
+    if (masteredCount >= this.MILESTONE_1_TARGET) {
+      await this.learningService.advanceToNextMilestone(learningPathId);
+      this.logger.info(
+        `Auto-advanced path ${learningPathId} to milestone 2 — ${masteredCount}/${this.MILESTONE_1_TARGET} words mastered`,
+      );
+    }
   }
 
   /**

@@ -75,7 +75,8 @@ export class AIService {
   private prisma: PrismaClient;
   private qstash: QStashClient;
   private logger: SimpleLogger;
-  private webookBaseUrl: string;
+  private webhookBaseUrl: string;
+  private qstashBaseUrl: string;
 
   constructor(prisma: PrismaClient) {
     this.prisma = prisma;
@@ -86,8 +87,25 @@ export class AIService {
       throw new Error('UPSTASH_QSTASH_TOKEN is not configured');
     }
 
-    this.qstash = new QStashClient({ token: qstashToken });
-    this.webookBaseUrl = process.env.WEBHOOK_BASE_URL || 'http://localhost:3000';
+    const configuredQstashUrl = process.env.UPSTASH_QSTASH_URL || process.env.QSTASH_URL;
+    this.qstashBaseUrl =
+      configuredQstashUrl ||
+      (process.env.NODE_ENV === 'development'
+        ? 'http://127.0.0.1:8080'
+        : 'https://qstash.upstash.io');
+
+    this.qstash = new QStashClient({
+      token: qstashToken,
+      baseUrl: this.qstashBaseUrl,
+    });
+    this.webhookBaseUrl = process.env.WEBHOOK_BASE_URL || 'http://localhost:3000';
+
+    this.logger.info(
+      `AIService initialized with QStash base URL: ${this.qstashBaseUrl}`,
+    );
+    this.logger.info(
+      `AIService webhook destination base URL: ${this.webhookBaseUrl}`,
+    );
   }
 
   /**
@@ -107,7 +125,7 @@ export class AIService {
     try {
       // Send to QStash
       await this.qstash.publishJSON({
-        url: `${this.webookBaseUrl}/jobs/generate-lesson`,
+        url: `${this.webhookBaseUrl}/jobs/generate-lesson`,
         body: {
           jobId: job.id,
           payload,
@@ -122,16 +140,22 @@ export class AIService {
         status: 'PENDING',
       };
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+
       // Mark job as failed
       await this.prisma.asyncJob.update({
         where: { id: job.id },
         data: {
           status: 'FAILED',
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: message,
         },
       });
 
-      throw AppError.internal('Failed to queue lesson generation job');
+      this.logger.error(
+        `Failed to queue lesson generation job ${job.id} via ${this.qstashBaseUrl}: ${message}`,
+      );
+
+      throw AppError.internal(`Failed to queue lesson generation job: ${message}`);
     }
   }
 
@@ -151,7 +175,7 @@ export class AIService {
 
     try {
       await this.qstash.publishJSON({
-        url: `${this.webookBaseUrl}/jobs/generate-story`,
+        url: `${this.webhookBaseUrl}/jobs/generate-story`,
         body: {
           jobId: job.id,
           payload,
@@ -166,15 +190,21 @@ export class AIService {
         status: 'PENDING',
       };
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+
       await this.prisma.asyncJob.update({
         where: { id: job.id },
         data: {
           status: 'FAILED',
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: message,
         },
       });
 
-      throw AppError.internal('Failed to queue story generation job');
+      this.logger.error(
+        `Failed to queue story generation job ${job.id} via ${this.qstashBaseUrl}: ${message}`,
+      );
+
+      throw AppError.internal(`Failed to queue story generation job: ${message}`);
     }
   }
 
@@ -193,7 +223,7 @@ export class AIService {
 
     try {
       await this.qstash.publishJSON({
-        url: `${this.webookBaseUrl}/jobs/generate-exercises`,
+        url: `${this.webhookBaseUrl}/jobs/generate-exercises`,
         body: {
           jobId: job.id,
           payload,
@@ -208,15 +238,21 @@ export class AIService {
         status: 'PENDING',
       };
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+
       await this.prisma.asyncJob.update({
         where: { id: job.id },
         data: {
           status: 'FAILED',
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: message,
         },
       });
 
-      throw AppError.internal('Failed to queue exercises generation job');
+      this.logger.error(
+        `Failed to queue exercises generation job ${job.id} via ${this.qstashBaseUrl}: ${message}`,
+      );
+
+      throw AppError.internal(`Failed to queue exercises generation job: ${message}`);
     }
   }
 
