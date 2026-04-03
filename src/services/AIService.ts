@@ -75,37 +75,61 @@ export class AIService {
   private prisma: PrismaClient;
   private qstash: QStashClient;
   private logger: SimpleLogger;
-  private webhookBaseUrl: string;
-  private qstashBaseUrl: string;
+  private webookBaseUrl: string;
+  private isProduction: boolean;
 
   constructor(prisma: PrismaClient) {
     this.prisma = prisma;
     this.logger = new SimpleLogger('AIService');
+    this.isProduction = process.env.NODE_ENV === 'production';
 
     const qstashToken = process.env.UPSTASH_QSTASH_TOKEN;
     if (!qstashToken) {
       throw new Error('UPSTASH_QSTASH_TOKEN is not configured');
     }
 
-    const configuredQstashUrl = process.env.UPSTASH_QSTASH_URL || process.env.QSTASH_URL;
-    this.qstashBaseUrl =
-      configuredQstashUrl ||
-      (process.env.NODE_ENV === 'development'
-        ? 'http://127.0.0.1:8080'
-        : 'https://qstash.upstash.io');
+    this.qstash = new QStashClient({ token: qstashToken });
 
-    this.qstash = new QStashClient({
-      token: qstashToken,
-      baseUrl: this.qstashBaseUrl,
-    });
-    this.webhookBaseUrl = process.env.WEBHOOK_BASE_URL || 'http://localhost:3000';
+    const configuredBaseUrl = process.env.WEBHOOK_BASE_URL?.trim();
+    const vercelUrl = process.env.VERCEL_URL?.trim();
+    const renderExternalUrl = process.env.RENDER_EXTERNAL_URL?.trim();
+    const railwayPublicDomain = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
 
-    this.logger.info(
-      `AIService initialized with QStash base URL: ${this.qstashBaseUrl}`,
-    );
-    this.logger.info(
-      `AIService webhook destination base URL: ${this.webhookBaseUrl}`,
-    );
+    const inferredBaseUrl =
+      configuredBaseUrl ||
+      (vercelUrl ? `https://${vercelUrl}` : undefined) ||
+      renderExternalUrl ||
+      (railwayPublicDomain ? `https://${railwayPublicDomain}` : undefined) ||
+      'http://localhost:3000';
+
+    this.webookBaseUrl = inferredBaseUrl.replace(/\/+$/, '');
+
+    if (this.isProduction && this.isLocalhostUrl(this.webookBaseUrl)) {
+      this.logger.error(
+        `Invalid webhook callback base URL in production: ${this.webookBaseUrl}. Set WEBHOOK_BASE_URL to a publicly reachable HTTPS URL.`,
+      );
+    }
+  }
+
+  private isLocalhostUrl(url: string): boolean {
+    try {
+      const parsed = new URL(url);
+      return ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+    } catch {
+      return false;
+    }
+  }
+
+  private ensureQueueCallbackUrlIsValid(): void {
+    if (!this.isProduction) {
+      return;
+    }
+
+    if (this.isLocalhostUrl(this.webookBaseUrl)) {
+      throw new Error(
+        `QStash callback URL is localhost in production (${this.webookBaseUrl}). Configure WEBHOOK_BASE_URL to your public API origin.`,
+      );
+    }
   }
 
   /**
@@ -118,14 +142,16 @@ export class AIService {
         type: 'GENERATE_LESSON',
         status: 'PENDING',
         learnerId: payload.learnerId,
-        payload: this.toJsonValue(payload),
+        payload: payload as unknown as Prisma.InputJsonValue,
       },
     });
 
     try {
+      this.ensureQueueCallbackUrlIsValid();
+
       // Send to QStash
       await this.qstash.publishJSON({
-        url: `${this.webhookBaseUrl}/jobs/generate-lesson`,
+        url: `${this.webookBaseUrl}/jobs/generate-lesson`,
         body: {
           jobId: job.id,
           payload,
@@ -140,22 +166,20 @@ export class AIService {
         status: 'PENDING',
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-
       // Mark job as failed
       await this.prisma.asyncJob.update({
         where: { id: job.id },
         data: {
           status: 'FAILED',
-          error: message,
+          error: error instanceof Error ? error.message : 'Unknown error',
         },
       });
 
       this.logger.error(
-        `Failed to queue lesson generation job ${job.id} via ${this.qstashBaseUrl}: ${message}`,
+        `Failed to queue lesson generation job ${job.id}: ${error instanceof Error ? error.message : String(error)}`,
       );
 
-      throw AppError.internal(`Failed to queue lesson generation job: ${message}`);
+      throw AppError.internal('Failed to queue lesson generation job');
     }
   }
 
@@ -169,13 +193,15 @@ export class AIService {
         type: 'GENERATE_STORY',
         status: 'PENDING',
         learnerId: payload.learnerId,
-        payload: this.toJsonValue(payload),
+        payload: payload as unknown as Prisma.InputJsonValue,
       },
     });
 
     try {
+      this.ensureQueueCallbackUrlIsValid();
+
       await this.qstash.publishJSON({
-        url: `${this.webhookBaseUrl}/jobs/generate-story`,
+        url: `${this.webookBaseUrl}/jobs/generate-story`,
         body: {
           jobId: job.id,
           payload,
@@ -190,21 +216,19 @@ export class AIService {
         status: 'PENDING',
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-
       await this.prisma.asyncJob.update({
         where: { id: job.id },
         data: {
           status: 'FAILED',
-          error: message,
+          error: error instanceof Error ? error.message : 'Unknown error',
         },
       });
 
       this.logger.error(
-        `Failed to queue story generation job ${job.id} via ${this.qstashBaseUrl}: ${message}`,
+        `Failed to queue story generation job ${job.id}: ${error instanceof Error ? error.message : String(error)}`,
       );
 
-      throw AppError.internal(`Failed to queue story generation job: ${message}`);
+      throw AppError.internal('Failed to queue story generation job');
     }
   }
 
@@ -217,13 +241,15 @@ export class AIService {
         type: 'GENERATE_EXERCISES',
         status: 'PENDING',
         learnerId: payload.learnerId,
-        payload: this.toJsonValue(payload),
+        payload: payload as unknown as Prisma.InputJsonValue,
       },
     });
 
     try {
+      this.ensureQueueCallbackUrlIsValid();
+
       await this.qstash.publishJSON({
-        url: `${this.webhookBaseUrl}/jobs/generate-exercises`,
+        url: `${this.webookBaseUrl}/jobs/generate-exercises`,
         body: {
           jobId: job.id,
           payload,
@@ -238,21 +264,19 @@ export class AIService {
         status: 'PENDING',
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-
       await this.prisma.asyncJob.update({
         where: { id: job.id },
         data: {
           status: 'FAILED',
-          error: message,
+          error: error instanceof Error ? error.message : 'Unknown error',
         },
       });
 
       this.logger.error(
-        `Failed to queue exercises generation job ${job.id} via ${this.qstashBaseUrl}: ${message}`,
+        `Failed to queue exercises generation job ${job.id}: ${error instanceof Error ? error.message : String(error)}`,
       );
 
-      throw AppError.internal(`Failed to queue exercises generation job: ${message}`);
+      throw AppError.internal('Failed to queue exercises generation job');
     }
   }
 
@@ -317,7 +341,7 @@ export class AIService {
       where: { id: jobId },
       data: {
         status: 'COMPLETED' as JobStatus,
-        result: this.toJsonValue(result),
+        result: result as Prisma.InputJsonValue,
         completedAt: new Date(),
       },
     });
@@ -388,9 +412,5 @@ export class AIService {
     this.logger.info(`Cleaned up ${result.count} old jobs`);
 
     return result.count;
-  }
-
-  private toJsonValue(value: unknown): Prisma.InputJsonValue {
-    return value as unknown as Prisma.InputJsonValue;
   }
 }
