@@ -59,3 +59,5 @@ export const optionalAuth = (
     next();
   }
 };
+
+export const authenticateOnboardingToken = authenticateToken;
