@@ -156,6 +156,7 @@ export class AIService {
           jobId: job.id,
           payload,
         },
+        retries: 3,
       });
 
       this.logger.info(`Queued lesson generation: ${job.id}`);
@@ -206,6 +207,7 @@ export class AIService {
           jobId: job.id,
           payload,
         },
+        retries: 3,
       });
 
       this.logger.info(`Queued story generation: ${job.id}`);
@@ -254,6 +256,7 @@ export class AIService {
           jobId: job.id,
           payload,
         },
+        retries: 3,
       });
 
       this.logger.info(`Queued exercises generation: ${job.id}`);

@@ -161,54 +161,35 @@ export class ClaudeClient {
       throw new Error('OpenRouter API key (OPENROUTER_API_KEY) is not configured');
     }
 
-    // Attempt 1: primary call
-    let primaryError: unknown = null;
+    // Single attempt only — no in-function retry.
+    // Vercel functions have a 60s hard timeout; a retry would double the latency
+    // and guarantee a timeout. QStash handles job-level retries automatically.
     try {
       const text = await this.callOpenRouter(input.system, input.prompt, input.maxTokens);
       const result = this.tryParse(text, input.validator);
+
       if (result !== null) {
         return result;
       }
 
-      this.logger.warn('Primary OpenRouter response failed validation — retrying with strict prompt', {
+      this.logger.warn('OpenRouter response failed validation', {
         model: this.model,
         preview: text.slice(0, 300),
       });
     } catch (error) {
-      primaryError = error;
-      this.logger.warn('Primary OpenRouter call failed', { error: String(error) });
-    }
+      this.logger.warn('OpenRouter call failed', { model: this.model, error: String(error) });
 
-    // Attempt 2: strict-JSON retry
-    try {
-      const strictSystem =
-        'You output ONLY valid JSON. No markdown, no prose, no code fences. ' +
-        'The JSON must exactly match the schema requested by the user.';
-      const strictText = await this.callOpenRouter(
-        strictSystem,
-        `${input.prompt} Respond with only the JSON object — nothing else.`,
-        input.maxTokens,
-      );
-
-      const strictResult = this.tryParse(strictText, input.validator);
-      if (strictResult !== null) {
-        return strictResult;
+      if (!hasFallback) {
+        throw error;
       }
-
-      this.logger.warn('Strict OpenRouter retry also failed validation', {
-        model: this.model,
-        preview: strictText.slice(0, 300),
-      });
-    } catch (error) {
-      this.logger.warn('Strict OpenRouter retry call failed', { error: String(error) });
     }
 
     if (hasFallback) {
-      this.logger.warn('All OpenRouter attempts failed — using fallback content');
+      this.logger.warn('OpenRouter response unusable — using fallback content');
       return input.fallback as T;
     }
 
-    throw primaryError ?? new Error(`OpenRouter model ${this.model} returned no valid JSON after 2 attempts`);
+    throw new Error(`OpenRouter model ${this.model} returned no valid JSON`);
   }
 
   private async callOpenRouter(
@@ -234,7 +215,8 @@ export class ClaudeClient {
           'HTTP-Referer': this.siteUrl,
           'X-Title': this.appName,
         },
-        timeout: 35000,
+        // 45s — leaves ~15s buffer inside a 60s Vercel function execution
+        timeout: 45000,
       },
     );
 
