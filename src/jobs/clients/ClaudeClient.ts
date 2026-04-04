@@ -15,10 +15,11 @@ interface OpenRouterResponse {
   }>;
 }
 
-// Free-tier models on OpenRouter cap output at ~2048 tokens.
-// Each word entry (word + translation + phrase + sentence + tags) costs ~130-160 tokens.
-// Batches of 10 words = ~1400 tokens — safely within any free model's output limit.
-const WORDS_PER_BATCH = 10;
+// Free-tier models on OpenRouter have hard output caps (~512-2048 tokens).
+// CJK characters (Japanese, Chinese, Korean) tokenize more densely than Latin.
+// Each word entry costs ~60-80 tokens for CJK, ~40-60 for Latin.
+// Batches of 5 words = ~300-400 tokens — safely within even the strictest free model cap.
+const WORDS_PER_BATCH = 5;
 
 export class ClaudeClient {
   private readonly apiKey?: string;
@@ -56,7 +57,9 @@ export class ClaudeClient {
       const alreadyGenerated = results.map((w) => w.word);
       const excludeList = [...input.excludeWords, ...alreadyGenerated];
 
-      const batch = await this.requestJson<{ words: GeneratedLessonWord[] }>({
+      // Ask the model for a compact schema (no exampleSentences) to minimise output tokens.
+      // exampleSentences is derived from examplePhrases after generation.
+      const batch = await this.requestJson<{ words: Array<Omit<GeneratedLessonWord, 'exampleSentences'>> }>({
         system:
           'You are a professional language-learning vocabulary creator. ' +
           'Output strict JSON only — no markdown, no backticks, no commentary.',
@@ -66,22 +69,28 @@ export class ClaudeClient {
             ? `Do not use any of these words: ${excludeList.join(', ')}.`
             : '',
           'Return a single JSON object with this exact shape:',
-          '{"words":[{"word":"...","translation":"...","complexityLevel":"BEGINNER","examplePhrases":["short phrase"],"exampleSentences":["short sentence"],"tags":["tag"]}]}',
-          `complexityLevel must be BEGINNER, INTERMEDIATE, or ADVANCED.`,
-          'Max 5 words per examplePhrase. Max 10 words per exampleSentence. Exactly 1 phrase, 1 sentence, and 1-2 tags per word.',
+          '{"words":[{"word":"...","translation":"...","complexityLevel":"BEGINNER","examplePhrases":["short phrase"],"tags":["tag"]}]}',
+          'complexityLevel must be BEGINNER, INTERMEDIATE, or ADVANCED.',
+          'Max 6 words per examplePhrase. Exactly 1 phrase and 1-2 tags per word.',
           'Output only the JSON object. Nothing else.',
         ]
           .filter(Boolean)
           .join(' '),
-        maxTokens: 1400,
-        validator: (value): value is { words: GeneratedLessonWord[] } =>
+        maxTokens: 900,
+        validator: (value): value is { words: Array<Omit<GeneratedLessonWord, 'exampleSentences'>> } =>
           typeof value === 'object' &&
           value !== null &&
           Array.isArray((value as { words?: unknown }).words) &&
           (value as { words: unknown[] }).words.length > 0,
       });
 
-      results.push(...batch.words);
+      // Derive exampleSentences from examplePhrases so WordData is fully populated
+      const wordsWithSentences: GeneratedLessonWord[] = batch.words.map((w) => ({
+        ...w,
+        exampleSentences: w.examplePhrases,
+      }));
+
+      results.push(...wordsWithSentences);
     }
 
     return results.slice(0, input.count);
