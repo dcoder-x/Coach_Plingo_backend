@@ -4,12 +4,9 @@ import {
   LearningService,
   CreateLearningPathInput,
   UpdateLearningPathInput,
-  LearningPathResponse,
-  MilestoneResponse,
 } from '../services/LearningService';
-import { AIService, QueuedJobResult } from '../services/AIService';
+import { AIService } from '../services/AIService';
 import { VocabularyService } from '../services/VocabularyService';
-import { LessonSessionService, completeCurrentSessionSchema } from '../services/LessonSessionService';
 import { SimpleLogger } from '../utils/Logger';
 import { AppError } from '../utils/AppError';
 
@@ -19,20 +16,16 @@ export class LearningController {
   private learningService: LearningService;
   private aiService: AIService;
   private vocabularyService: VocabularyService;
-  private lessonSessionService: LessonSessionService;
-  private prisma: PrismaClient;
 
   constructor(prisma: PrismaClient) {
-    this.prisma = prisma;
     this.learningService = new LearningService(prisma);
     this.aiService = new AIService(prisma);
     this.vocabularyService = new VocabularyService(prisma);
-    this.lessonSessionService = new LessonSessionService(prisma);
   }
 
   /**
    * POST /learning/paths
-   * Create new learning path
+   * Create new learning path and auto-queue first lesson generation
    */
   async createPath(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -42,184 +35,51 @@ export class LearningController {
 
       const input: CreateLearningPathInput = req.body;
       const result = await this.learningService.createLearningPath(req.learnerId, input);
+      const pathId = result.path.id;
+      const isNewPath = !result.path.createdAt || new Date().getTime() - new Date(result.path.createdAt).getTime() < 1000;
+
+      // Auto-queue lesson generation for first milestone if new path
+      let queuedJob = null;
+      if (isNewPath) {
+        try {
+          const firstMilestone = result.milestones[0];
+          const globalSet = await this.vocabularyService.getOrCreateGlobalSet(
+            input.language,
+            input.profession,
+          );
+
+          queuedJob = await this.aiService.queueGenerateLesson({
+            learningPathId: pathId,
+            learnerId: req.learnerId,
+            language: input.language,
+            profession: input.profession,
+            wordsPerLesson: input.wordsPerLesson,
+            globalSetId: globalSet.id,
+            milestoneId: firstMilestone.id,
+            baseLanguage: 'en',
+            excludeWords: [],
+          });
+
+          logger.info(`Auto-queued lesson generation for path ${pathId}: job ${queuedJob.jobId}`);
+        } catch (queueError) {
+          logger.error(
+            `Failed to auto-queue lesson generation for path ${pathId}`,
+            queueError instanceof Error ? queueError.message : String(queueError),
+          );
+          // Don't fail the request if queuing fails — path is still created
+        }
+      }
 
       logger.info(
-        `Created learning path: ${result.path.id} for learner ${req.learnerId}`,
+        `Created learning path: ${pathId} for learner ${req.learnerId}`,
       );
-
-      // Queue first lesson generation for milestone 1 (non-blocking for generation itself)
-      let preparationJob: QueuedJobResult | null = null;
-      try {
-        preparationJob = await this.triggerFirstLesson(req.learnerId, result);
-      } catch (err) {
-        logger.error(
-          `Failed to auto-queue lesson for path ${result.path.id}: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
 
       res.status(201).json({
         success: true,
         data: {
           ...result,
-          preparation: {
-            status: preparationJob ? 'PREPARING' : 'QUEUE_FAILED',
-            ready: false,
-            jobId: preparationJob?.jobId,
-          },
+          lessonQueuedJob: queuedJob,
         },
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Auto-trigger first lesson generation immediately after path creation.
-   * Fetches learner's base language, resolves/creates the global vocabulary set,
-   * then enqueues a GENERATE_LESSON job for milestone 1.
-   */
-  private async triggerFirstLesson(
-    learnerId: string,
-    result: { path: LearningPathResponse; milestones: MilestoneResponse[] },
-  ): Promise<QueuedJobResult> {
-    const learner = await this.prisma.learner.findUnique({
-      where: { id: learnerId },
-      select: { baseLanguage: true },
-    });
-
-    if (!learner?.baseLanguage) {
-      throw AppError.badRequest('Cannot auto-trigger lesson: learner has no base language');
-    }
-
-    const milestone1 = result.milestones.find((m) => m.milestoneNumber === 1);
-    if (!milestone1) {
-      throw AppError.notFound('Cannot auto-trigger lesson: milestone 1 not found');
-    }
-
-    const globalSet = await this.vocabularyService.getOrCreateGlobalSet(
-      result.path.language,
-      result.path.profession,
-    );
-
-    const job = await this.aiService.queueGenerateLesson({
-      learningPathId: result.path.id,
-      learnerId,
-      language: result.path.language,
-      profession: result.path.profession,
-      wordsPerLesson: result.path.wordsPerLesson,
-      globalSetId: globalSet.id,
-      milestoneId: milestone1.id,
-      baseLanguage: learner.baseLanguage,
-      excludeWords: [],
-    });
-
-    logger.info(
-      `Auto-queued lesson generation job ${job.jobId} for new path ${result.path.id}`,
-    );
-
-    return job;
-  }
-
-  /**
-   * GET /learning/paths/:id/readiness
-   * Readiness signal for first lesson generation after path creation.
-   */
-  async getPathReadiness(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { id } = req.params;
-      const path = await this.learningService.getLearningPath(id);
-
-      if (path.learnerId !== req.learnerId) {
-        throw AppError.forbidden('Not authorized');
-      }
-
-      const [activeWords, totalAssignedWords, milestone1] = await Promise.all([
-        this.prisma.learnerWordState.count({
-          where: {
-            learningPathId: id,
-            status: 'ACTIVE',
-          },
-        }),
-        this.prisma.learnerWordState.count({
-          where: {
-            learningPathId: id,
-          },
-        }),
-        this.prisma.milestone.findUnique({
-          where: {
-            learningPathId_milestoneNumber: {
-              learningPathId: id,
-              milestoneNumber: 1,
-            },
-          },
-          select: {
-            id: true,
-            generatedWords: true,
-          },
-        }),
-      ]);
-
-      const generatedWordsCount = Array.isArray(milestone1?.generatedWords)
-        ? milestone1.generatedWords.length
-        : 0;
-      const ready = activeWords > 0 && totalAssignedWords > 0;
-
-      res.json({
-        success: true,
-        data: {
-          pathId: id,
-          status: ready ? 'READY' : 'PREPARING',
-          ready,
-          activeWords,
-          totalAssignedWords,
-          generatedWordsCount,
-          milestoneId: milestone1?.id,
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * GET /learning/paths/:id/current-session
-   * Return a fully orchestrated lesson session payload for the current milestone.
-   */
-  async getCurrentSession(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      if (!req.learnerId) {
-        throw AppError.unauthorized('Not authenticated');
-      }
-
-      const { id } = req.params;
-      const session = await this.lessonSessionService.getCurrentSession(id, req.learnerId);
-
-      res.json({
-        success: true,
-        data: session,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * POST /learning/paths/:id/current-session/complete
-   * Submit a completed lesson session in one payload.
-   */
-  async completeCurrentSession(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      if (!req.learnerId) {
-        throw AppError.unauthorized('Not authenticated');
-      }
-
-      const { id } = req.params;
-      const input = completeCurrentSessionSchema.parse(req.body);
-      const result = await this.lessonSessionService.completeCurrentSession(id, req.learnerId, input);
-
-      res.json({
-        success: true,
-        data: result,
       });
     } catch (error) {
       next(error);

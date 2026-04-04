@@ -99,7 +99,7 @@ export class LearningService {
     learnerId: string,
     input: CreateLearningPathInput,
   ): Promise<{ path: LearningPathResponse; milestones: MilestoneResponse[] }> {
-    // Check for duplicate path
+    // Check for existing path
     const existing = await this.prisma.learningPath.findUnique({
       where: {
         learnerId_language_profession: {
@@ -108,18 +108,35 @@ export class LearningService {
           profession: input.profession,
         },
       },
+      include: { milestones: true },
     });
 
+    // If an ACTIVE path exists, return it (idempotent)
     if (existing && existing.status === 'ACTIVE') {
-      throw AppError.conflict(
-        'Active learning path already exists for this language and profession combination',
-        {
-          existingPathId: existing.id,
-        },
+      this.logger.info(
+        `Returning existing active learning path: ${existing.id} for learner ${learnerId}`,
       );
+      return {
+        path: this.formatPath(existing),
+        milestones: existing.milestones.map((m: MilestoneRecord) => this.formatMilestone(m)),
+      };
     }
 
-    // Create learning path with milestones in a transaction
+    // If a path exists but is INACTIVE/FAILED, mark it as ACTIVE and resume
+    if (existing) {
+      this.logger.info(`Resuming learning path: ${existing.id} for learner ${learnerId}`);
+      const resumed = await this.prisma.learningPath.update({
+        where: { id: existing.id },
+        data: { status: 'ACTIVE' },
+      });
+
+      return {
+        path: this.formatPath(resumed),
+        milestones: existing.milestones.map((m: MilestoneRecord) => this.formatMilestone(m)),
+      };
+    }
+
+    // Create new learning path with milestones in a transaction
     const result = await this.prisma.$transaction(async (tx: any) => {
       const path = await tx.learningPath.create({
         data: {
