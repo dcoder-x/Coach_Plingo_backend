@@ -20,7 +20,7 @@ interface OpenRouterResponse {
 // CJK characters (Japanese, Chinese, Korean) tokenize more densely than Latin.
 // Each word entry costs ~60-80 tokens for CJK, ~40-60 for Latin.
 // Batches of 5 words = ~300-400 tokens — safely within even the strictest free model cap.
-const WORDS_PER_BATCH = 5;
+// const WORDS_PER_BATCH = 5;
 
 export class ClaudeClient {
   private readonly apiKey?: string;
@@ -40,7 +40,6 @@ export class ClaudeClient {
     this.logger = new SimpleLogger('ClaudeClient');
   }
 
-<<<<<<< HEAD
   static isRetriableError(error: unknown): boolean {
     if (!axios.isAxiosError(error)) {
       return false;
@@ -60,13 +59,6 @@ export class ClaudeClient {
     return status === 408 || status === 429 || status >= 500;
   }
 
-=======
-  /**
-   * Generate vocabulary words via OpenRouter in batches so each request stays
-   * within the output-token limit of free-tier models (~2048 tokens max).
-   * Each batch requests WORDS_PER_BATCH words; batches are merged in order.
-   */
->>>>>>> c64125785945c710d6f368d182b9fbb7b539fe24
   async generateLessonWords(input: {
     profession: string;
     language: string;
@@ -85,7 +77,6 @@ export class ClaudeClient {
     count: number;
     excludeWords: string[];
   }): Promise<GeneratedLessonWord[]> {
-<<<<<<< HEAD
     const fallback = generateFallbackLessonWords({
       profession: input.profession,
       language: input.language,
@@ -115,52 +106,6 @@ export class ClaudeClient {
       const words = Array.isArray(result) ? result : result.words;
       return words.slice(0, input.count);
     });
-=======
-    const results: GeneratedLessonWord[] = [];
-
-    while (results.length < input.count) {
-      const batchSize = Math.min(WORDS_PER_BATCH, input.count - results.length);
-      const alreadyGenerated = results.map((w) => w.word);
-      const excludeList = [...input.excludeWords, ...alreadyGenerated];
-
-      // Ask the model for a compact schema (no exampleSentences) to minimise output tokens.
-      // exampleSentences is derived from examplePhrases after generation.
-      const batch = await this.requestJson<{ words: Array<Omit<GeneratedLessonWord, 'exampleSentences'>> }>({
-        system:
-          'You are a professional language-learning vocabulary creator. ' +
-          'Output strict JSON only — no markdown, no backticks, no commentary.',
-        prompt: [
-          `Generate exactly ${batchSize} ${input.language} vocabulary words for the profession: ${input.profession}.`,
-          excludeList.length > 0
-            ? `Do not use any of these words: ${excludeList.join(', ')}.`
-            : '',
-          'Return a single JSON object with this exact shape:',
-          '{"words":[{"word":"...","translation":"...","complexityLevel":"BEGINNER","examplePhrases":["short phrase"],"tags":["tag"]}]}',
-          'complexityLevel must be BEGINNER, INTERMEDIATE, or ADVANCED.',
-          'Max 6 words per examplePhrase. Exactly 1 phrase and 1-2 tags per word.',
-          'Output only the JSON object. Nothing else.',
-        ]
-          .filter(Boolean)
-          .join(' '),
-        maxTokens: 900,
-        validator: (value): value is { words: Array<Omit<GeneratedLessonWord, 'exampleSentences'>> } =>
-          typeof value === 'object' &&
-          value !== null &&
-          Array.isArray((value as { words?: unknown }).words) &&
-          (value as { words: unknown[] }).words.length > 0,
-      });
-
-      // Derive exampleSentences from examplePhrases so WordData is fully populated
-      const wordsWithSentences: GeneratedLessonWord[] = batch.words.map((w) => ({
-        ...w,
-        exampleSentences: w.examplePhrases,
-      }));
-
-      results.push(...wordsWithSentences);
-    }
-
-    return results.slice(0, input.count);
->>>>>>> c64125785945c710d6f368d182b9fbb7b539fe24
   }
 
   async generateStory(input: {
@@ -344,9 +289,9 @@ export class ClaudeClient {
   private hasConfiguredKey(): boolean {
     return Boolean(
       this.apiKey &&
-        !this.apiKey.startsWith('YOUR_') &&
-        this.apiKey !== 'YOUR_CLAUDE_API_KEY' &&
-        this.apiKey !== 'YOUR_OPENROUTER_API_KEY',
+      !this.apiKey.startsWith('YOUR_') &&
+      this.apiKey !== 'YOUR_CLAUDE_API_KEY' &&
+      this.apiKey !== 'YOUR_OPENROUTER_API_KEY',
     );
   }
 }
