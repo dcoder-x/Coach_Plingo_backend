@@ -151,14 +151,14 @@ export class AIService {
 
   private getJobWebhookPath(type: JobType): string | null {
     switch (type) {
-    case 'GENERATE_LESSON':
-      return '/jobs/generate-lesson';
-    case 'GENERATE_STORY':
-      return '/jobs/generate-story';
-    case 'GENERATE_EXERCISES':
-      return '/jobs/generate-exercises';
-    default:
-      return null;
+      case 'GENERATE_LESSON':
+        return '/jobs/generate-lesson';
+      case 'GENERATE_STORY':
+        return '/jobs/generate-story';
+      case 'GENERATE_EXERCISES':
+        return '/jobs/generate-exercises';
+      default:
+        return null;
     }
   }
 

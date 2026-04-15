@@ -286,7 +286,7 @@ export class LearningController {
 
       const status =
         typeof req.query.status === 'string' &&
-        ['ACTIVE', 'PAUSED', 'COMPLETED', 'ARCHIVED'].includes(req.query.status.toUpperCase())
+          ['ACTIVE', 'PAUSED', 'COMPLETED', 'ARCHIVED'].includes(req.query.status.toUpperCase())
           ? (req.query.status.toUpperCase() as 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED')
           : undefined;
       const paths = await this.learningService.getLearnerPaths(req.learnerId, status);

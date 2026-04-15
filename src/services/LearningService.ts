@@ -119,6 +119,7 @@ export class LearningService {
         learnerId,
         status: 'ACTIVE',
       },
+      include: { milestones: true },
     });
 
     if (existing) {
