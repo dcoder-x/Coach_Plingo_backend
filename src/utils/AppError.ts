@@ -32,10 +32,6 @@ export class AppError extends Error {
     return new AppError(422, message, details);
   }
 
-  static notImplemented(message = 'Not implemented'): AppError {
-    return new AppError(501, message);
-  }
-
   static internal(message = 'Internal server error'): AppError {
     return new AppError(500, message);
   }

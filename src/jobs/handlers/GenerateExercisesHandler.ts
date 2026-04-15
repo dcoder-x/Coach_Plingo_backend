@@ -70,7 +70,8 @@ export class GenerateExercisesHandler {
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown exercises job error';
-      await this.aiService.markFailed(jobId, message, false);
+      const shouldRetry = ClaudeClient.isRetriableError(error);
+      await this.aiService.markFailed(jobId, message, shouldRetry);
       await this.notificationService.notifyError(payload.learnerId, 'Pronunciation exercise generation failed.');
       throw error;
     }

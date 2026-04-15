@@ -198,8 +198,8 @@ export class PronunciationService {
       };
     }
 
-    const passedAttempts = attempts.filter((attempt) => attempt.passed).length;
-    const accuracyScores = attempts.map((attempt) => Number(attempt.accuracyScore));
+    const passedAttempts = attempts.filter((a) => a.passed).length;
+    const accuracyScores = attempts.map((a) => Number(a.accuracyScore));
     const averageAccuracy = Math.round(
       (accuracyScores.reduce((a: number, b: number) => a + b, 0) / accuracyScores.length) * 100,
     ) / 100;

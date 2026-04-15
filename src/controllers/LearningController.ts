@@ -96,6 +96,44 @@ export class LearningController {
       throw AppError.notFound('Cannot auto-trigger lesson: milestone 1 not found');
     }
 
+    const professionOpt = await this.prisma.professionOption.findUnique({
+      where: { slug: result.path.profession },
+    });
+
+    const subcategoriesRaw = await this.prisma.professionSubcategory.findMany({
+      where: {
+        professionId: professionOpt?.id || '',
+      },
+      orderBy: { position: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        position: true,
+      },
+    });
+
+    const totalSubcats = subcategoriesRaw.length;
+    const baseAllocation = totalSubcats > 0 ? Math.floor(500 / totalSubcats) : 0;
+    let remainder = totalSubcats > 0 ? 500 % totalSubcats : 0;
+
+    const subcategories = subcategoriesRaw.map((sub) => {
+      const allocation = baseAllocation + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder--;
+      return {
+        ...sub,
+        wordAllocation: allocation,
+      };
+    });
+
+    const currentSubcategory = result.path.currentSubcategory
+      ? subcategories.find((subcategory) => subcategory.id === result.path.currentSubcategory?.id)
+      : null;
+
+    if (!currentSubcategory) {
+      throw AppError.notFound('Cannot auto-trigger lesson: current subcategory not found');
+    }
+
     const globalSet = await this.vocabularyService.getOrCreateGlobalSet(
       result.path.language,
       result.path.profession,
@@ -106,6 +144,16 @@ export class LearningController {
       learnerId,
       language: result.path.language,
       profession: result.path.profession,
+      currentSubcategoryId: currentSubcategory.id,
+      currentSubcategoryName: currentSubcategory.name,
+      currentSubcategoryDescription: currentSubcategory.description || undefined,
+      subcategories: subcategories.map((subcategory) => ({
+        id: subcategory.id,
+        name: subcategory.name,
+        description: subcategory.description || undefined,
+        wordAllocation: subcategory.wordAllocation,
+        position: subcategory.position,
+      })),
       wordsPerLesson: result.path.wordsPerLesson,
       globalSetId: globalSet.id,
       milestoneId: milestone1.id,
@@ -236,7 +284,12 @@ export class LearningController {
         throw AppError.unauthorized('Not authenticated');
       }
 
-      const paths = await this.learningService.getLearnerPaths(req.learnerId);
+      const status =
+        typeof req.query.status === 'string' &&
+        ['ACTIVE', 'PAUSED', 'COMPLETED', 'ARCHIVED'].includes(req.query.status.toUpperCase())
+          ? (req.query.status.toUpperCase() as 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED')
+          : undefined;
+      const paths = await this.learningService.getLearnerPaths(req.learnerId, status);
 
       res.json({
         success: true,
@@ -264,6 +317,52 @@ export class LearningController {
       res.json({
         success: true,
         data: { path },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /learning/paths/:id/archive
+   * Archive an active path
+   */
+  async archivePath(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.learnerId) {
+        throw AppError.unauthorized('Not authenticated');
+      }
+
+      const { id } = req.params;
+      const archived = await this.learningService.archiveLearningPath(id, req.learnerId);
+
+      res.json({
+        success: true,
+        data: archived,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /learning/paths/:id/subcategories
+   * Return subcategory progression for a path
+   */
+  async getPathSubcategories(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const path = await this.learningService.getLearningPath(id);
+
+      if (path.learnerId !== req.learnerId) {
+        throw AppError.forbidden('Not authorized');
+      }
+
+      const subcategories = await this.learningService.getPathSubcategories(id);
+
+      res.json({
+        success: true,
+        data: { subcategories },
       });
     } catch (error) {
       next(error);

@@ -11,13 +11,20 @@ interface LearningPathRecord {
   learnerId: string;
   language: string;
   profession: string;
-  status: 'ACTIVE' | 'PAUSED' | 'COMPLETED';
+  status: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED';
   currentMilestone: number;
+  currentSubcategoryId: string | null;
+  subcategoriesCompleted: number;
   wordsPerLesson: number;
   startedAt: Date;
   completedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  currentSubcategory?: {
+    id: string;
+    name: string;
+    position: number;
+  } | null;
 }
 
 interface MilestoneRecord {
@@ -37,11 +44,12 @@ interface MilestoneRecord {
 export const createLearningPathSchema = z.object({
   language: z.string().min(2, 'Language is required'),
   profession: z.string().min(2, 'Profession is required'),
+  subcategoryId: z.string().min(1, 'Subcategory is required'),
   wordsPerLesson: z.number().int().min(5).max(100).default(20),
 });
 
 export const updateLearningPathSchema = z.object({
-  status: z.enum(['ACTIVE', 'PAUSED', 'COMPLETED']).optional(),
+  status: z.enum(['ACTIVE', 'PAUSED', 'COMPLETED', 'ARCHIVED']).optional(),
   wordsPerLesson: z.number().int().min(5).max(100).optional(),
 });
 
@@ -60,6 +68,12 @@ export interface LearningPathResponse {
   completedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  currentSubcategory?: {
+    id: string;
+    name: string;
+    position: number;
+    total: number;
+  } | null;
 }
 
 export interface MilestoneResponse {
@@ -99,24 +113,55 @@ export class LearningService {
     learnerId: string,
     input: CreateLearningPathInput,
   ): Promise<{ path: LearningPathResponse; milestones: MilestoneResponse[] }> {
-    // Check for duplicate path
-    const existing = await this.prisma.learningPath.findUnique({
+    // One active path per learner
+    const existing = await this.prisma.learningPath.findFirst({
       where: {
-        learnerId_language_profession: {
-          learnerId,
-          language: input.language,
-          profession: input.profession,
-        },
+        learnerId,
+        status: 'ACTIVE',
       },
     });
 
-    if (existing && existing.status === 'ACTIVE') {
+    if (existing) {
       throw AppError.conflict(
-        'Active learning path already exists for this language and profession combination',
+        'An active learning path already exists.',
         {
-          existingPathId: existing.id,
+          code: 'ACTIVE_PATH_EXISTS',
+          activePathId: existing.id,
         },
       );
+    }
+
+    const professionOpt = await this.prisma.professionOption.findUnique({
+      where: { slug: input.profession },
+    });
+
+    const subcategoriesRaw = await this.prisma.professionSubcategory.findMany({
+      where: {
+        profession: { id: professionOpt?.id || '' },
+      },
+      orderBy: { position: 'asc' },
+    });
+
+    const totalSubcategories = subcategoriesRaw.length;
+    const baseAllocation = totalSubcategories > 0 ? Math.floor(500 / totalSubcategories) : 0;
+    let remainder = totalSubcategories > 0 ? 500 % totalSubcategories : 0;
+
+    const subcategories = subcategoriesRaw.map((sub) => {
+      const allocation = baseAllocation + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder--;
+      return {
+        ...sub,
+        wordAllocation: allocation,
+      };
+    });
+
+    if (subcategories.length === 0) {
+      throw AppError.badRequest('No subcategories configured for this profession and language');
+    }
+
+    const selectedSubcategory = subcategories.find((subcategory) => subcategory.id === input.subcategoryId);
+    if (!selectedSubcategory) {
+      throw AppError.badRequest('Subcategory does not belong to the selected profession and language');
     }
 
     // Create learning path with milestones in a transaction
@@ -126,10 +171,23 @@ export class LearningService {
           learnerId,
           language: input.language,
           profession: input.profession,
+          currentSubcategoryId: input.subcategoryId,
           wordsPerLesson: input.wordsPerLesson,
           status: 'ACTIVE',
           currentMilestone: 1,
         },
+      });
+
+      await tx.subcategoryProgress.createMany({
+        data: subcategories.map((subcategory) => ({
+          learningPathId: path.id,
+          subcategoryId: subcategory.id,
+          status: subcategory.id === input.subcategoryId ? 'ACTIVE' : 'PENDING',
+          wordsCompleted: 0,
+          wordsTotal: subcategory.wordAllocation,
+          milestonesCompleted: 0,
+          unlockedAt: subcategory.id === input.subcategoryId ? new Date() : null,
+        })),
       });
 
       // Create 3 milestones
@@ -148,7 +206,7 @@ export class LearningService {
         milestones.push(milestone);
       }
 
-      return { path, milestones };
+      return { path, milestones, selectedSubcategory, subcategoryTotal: subcategories.length };
     });
 
     this.logger.info(
@@ -156,7 +214,7 @@ export class LearningService {
     );
 
     return {
-      path: this.formatPath(result.path),
+      path: this.formatPath(result.path, result.subcategoryTotal, result.selectedSubcategory),
       milestones: result.milestones.map((m: MilestoneRecord) => this.formatMilestone(m)),
     };
   }
@@ -167,25 +225,67 @@ export class LearningService {
   async getLearningPath(pathId: string): Promise<LearningPathResponse> {
     const path = await this.prisma.learningPath.findUnique({
       where: { id: pathId },
+      include: {
+        currentSubcategory: {
+          select: {
+            id: true,
+            name: true,
+            position: true,
+          },
+        },
+      },
     });
 
     if (!path) {
       throw AppError.notFound('Learning path not found');
     }
 
-    return this.formatPath(path);
+    const total = await this.prisma.subcategoryProgress.count({
+      where: { learningPathId: pathId },
+    });
+
+    return this.formatPath(path, total);
   }
 
   /**
    * Get all learning paths for a learner
    */
-  async getLearnerPaths(learnerId: string): Promise<LearningPathResponse[]> {
+  async getLearnerPaths(
+    learnerId: string,
+    status?: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED',
+  ): Promise<LearningPathResponse[]> {
     const paths = await this.prisma.learningPath.findMany({
-      where: { learnerId },
+      where: {
+        learnerId,
+        ...(status ? { status } : {}),
+      },
+      include: {
+        currentSubcategory: {
+          select: {
+            id: true,
+            name: true,
+            position: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
-    return paths.map((p: LearningPathRecord) => this.formatPath(p));
+    const totals = await this.prisma.subcategoryProgress.groupBy({
+      by: ['learningPathId'],
+      where: {
+        learningPathId: {
+          in: paths.map((path) => path.id),
+        },
+      },
+      _count: {
+        learningPathId: true,
+      },
+    });
+
+    const totalByPath = new Map(totals.map((item) => [item.learningPathId, item._count.learningPathId]));
+
+    return paths.map((p: LearningPathRecord) => this.formatPath(p, totalByPath.get(p.id) || 0));
   }
 
   /**
@@ -196,13 +296,11 @@ export class LearningService {
     language: string,
     profession: string,
   ): Promise<LearningPathResponse | null> {
-    const path = await this.prisma.learningPath.findUnique({
+    const path = await this.prisma.learningPath.findFirst({
       where: {
-        learnerId_language_profession: {
-          learnerId,
-          language,
-          profession,
-        },
+        learnerId,
+        language,
+        profession,
       },
     });
 
@@ -407,11 +505,218 @@ export class LearningService {
     this.logger.info(`Deleted learning path: ${pathId}`);
   }
 
+  async archiveLearningPath(pathId: string, learnerId: string): Promise<{
+    pathId: string;
+    status: 'ARCHIVED';
+    archivedAt: Date;
+  }> {
+    const path = await this.prisma.learningPath.findFirst({
+      where: {
+        id: pathId,
+        learnerId,
+      },
+    });
+
+    if (!path) {
+      throw AppError.notFound('Learning path not found');
+    }
+
+    if (path.status === 'COMPLETED') {
+      throw AppError.badRequest('ALREADY_COMPLETED');
+    }
+
+    if (path.status === 'ARCHIVED') {
+      throw AppError.badRequest('ALREADY_ARCHIVED');
+    }
+
+    const archivedAt = new Date();
+    await this.prisma.learningPath.update({
+      where: { id: pathId },
+      data: {
+        status: 'ARCHIVED',
+        completedAt: archivedAt,
+      },
+    });
+
+    return {
+      pathId,
+      status: 'ARCHIVED',
+      archivedAt,
+    };
+  }
+
+  async getPathSubcategories(pathId: string): Promise<Array<{
+    id: string;
+    name: string;
+    position: number;
+    status: 'PENDING' | 'ACTIVE' | 'COMPLETED';
+    wordsCompleted: number;
+    wordsTotal: number;
+    milestonesCompleted: number;
+    completedAt: Date | null;
+  }>> {
+    const rows = await this.prisma.subcategoryProgress.findMany({
+      where: { learningPathId: pathId },
+      include: {
+        subcategory: {
+          select: {
+            id: true,
+            name: true,
+            position: true,
+          },
+        },
+      },
+      orderBy: {
+        subcategory: {
+          position: 'asc',
+        },
+      },
+    });
+
+    return rows.map((row) => ({
+      id: row.subcategory.id,
+      name: row.subcategory.name,
+      position: row.subcategory.position,
+      status: row.status,
+      wordsCompleted: row.wordsCompleted,
+      wordsTotal: row.wordsTotal,
+      milestonesCompleted: row.milestonesCompleted,
+      completedAt: row.completedAt,
+    }));
+  }
+
+  async getProfessionSubcategories(professionId: string): Promise<{
+    profession: string;
+    subcategories: Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      wordAllocation: number;
+      position: number;
+    }>;
+  }> {
+    const profession = await this.prisma.professionOption.findUnique({
+      where: { id: professionId },
+      select: { slug: true },
+    });
+
+    if (!profession) {
+      throw AppError.notFound('Profession not found');
+    }
+
+    const subcategoriesRaw = await this.prisma.professionSubcategory.findMany({
+      where: {
+        professionId: professionId,
+      },
+      orderBy: { position: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        position: true,
+      },
+    });
+
+    const totalSubcategories = subcategoriesRaw.length;
+    const baseAllocation = totalSubcategories > 0 ? Math.floor(500 / totalSubcategories) : 0;
+    let remainder = totalSubcategories > 0 ? 500 % totalSubcategories : 0;
+
+    const subcategories = subcategoriesRaw.map((sub) => {
+      const allocation = baseAllocation + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder--;
+      return {
+        ...sub,
+        wordAllocation: allocation,
+      };
+    });
+
+    return {
+      profession: profession.slug,
+      subcategories,
+    };
+  }
+
+  async triggerLessonReplenishment(learningPathId: string): Promise<void> {
+    const path = await this.prisma.learningPath.findUnique({
+      where: { id: learningPathId },
+      include: { learner: true },
+    });
+    if (!path || path.currentMilestone !== 1) return;
+
+    // Find the next subcategory to generate words for
+    const subProgress = await this.prisma.subcategoryProgress.findMany({
+      where: { learningPathId },
+      include: { subcategory: true },
+      orderBy: { subcategory: { position: 'asc' } },
+    });
+
+    const activeSub = subProgress.find(p => p.wordsCompleted < p.wordsTotal);
+    if (!activeSub) {
+      this.logger.info(`Path ${learningPathId} has completely maxed all M1 subcategories.`);
+      return;
+    }
+
+    if (path.currentSubcategoryId !== activeSub.subcategoryId) {
+      // Update path to point to new active subcategory
+      await this.prisma.learningPath.update({
+        where: { id: learningPathId },
+        data: { currentSubcategoryId: activeSub.subcategoryId },
+      });
+
+      // Update the progress row to appear ACTIVE on the frontend timeline
+      await this.prisma.subcategoryProgress.update({
+        where: {
+          learningPathId_subcategoryId: {
+            learningPathId: path.id,
+            subcategoryId: activeSub.subcategoryId,
+          },
+        },
+        data: { status: 'ACTIVE', unlockedAt: new Date() },
+      });
+    }
+
+    const { subcategories } = await this.getProfessionSubcategories(path.profession);
+    const { VocabularyService } = require('./VocabularyService');
+    const vocabService = new VocabularyService(this.prisma);
+    const globalSet = await vocabService.getOrCreateGlobalSet(path.language, path.profession);
+
+    const milestone1 = await this.prisma.milestone.findUnique({
+      where: { learningPathId_milestoneNumber: { learningPathId, milestoneNumber: 1 } },
+    });
+
+    if (!milestone1) return;
+
+    const { AIService } = require('./AIService');
+    const aiService = new AIService(this.prisma);
+    await aiService.queueGenerateLesson({
+      learningPathId,
+      learnerId: path.learnerId,
+      language: path.language,
+      profession: path.profession,
+      currentSubcategoryId: activeSub.subcategoryId,
+      currentSubcategoryName: activeSub.subcategory.name,
+      currentSubcategoryDescription: activeSub.subcategory.description || undefined,
+      subcategories,
+      wordsPerLesson: path.wordsPerLesson,
+      globalSetId: globalSet.id,
+      milestoneId: milestone1.id,
+      baseLanguage: path.learner.baseLanguage,
+      excludeWords: [],
+    });
+    this.logger.info(`Triggered replenishment job for path ${learningPathId} in subcategory ${activeSub.subcategory.name}`);
+  }
+
   // ========================================================================
   // Private helpers
   // ========================================================================
 
-  private formatPath(path: LearningPathRecord): LearningPathResponse {
+  private formatPath(
+    path: LearningPathRecord,
+    totalSubcategories = 0,
+    selectedSubcategory?: { id: string; name: string; position: number },
+  ): LearningPathResponse {
+    const currentSubcategory = selectedSubcategory || path.currentSubcategory || null;
+
     return {
       id: path.id,
       learnerId: path.learnerId,
@@ -424,6 +729,14 @@ export class LearningService {
       completedAt: path.completedAt,
       createdAt: path.createdAt,
       updatedAt: path.updatedAt,
+      currentSubcategory: currentSubcategory
+        ? {
+          id: currentSubcategory.id,
+          name: currentSubcategory.name,
+          position: currentSubcategory.position,
+          total: totalSubcategories,
+        }
+        : null,
     };
   }
 

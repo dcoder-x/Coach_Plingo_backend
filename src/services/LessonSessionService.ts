@@ -7,6 +7,8 @@ import { CloudinaryService } from './CloudinaryService';
 import { ElevenLabsClient } from '../jobs/clients/ElevenLabsClient';
 import { AIService } from './AIService';
 import { LearningService } from './LearningService';
+import { StreakService } from './StreakService';
+
 import { SimpleLogger } from '../utils/Logger';
 
 export const completeCurrentSessionSchema = z
@@ -81,6 +83,7 @@ export class LessonSessionService {
   private readonly elevenLabsClient: ElevenLabsClient;
   private readonly aiService: AIService;
   private readonly learningService: LearningService;
+  private readonly streakService: StreakService;
   private readonly logger: SimpleLogger;
 
   constructor(prisma: PrismaClient) {
@@ -91,13 +94,23 @@ export class LessonSessionService {
     this.elevenLabsClient = new ElevenLabsClient();
     this.aiService = new AIService(prisma);
     this.learningService = new LearningService(prisma);
+    this.streakService = new StreakService(prisma);
     this.logger = new SimpleLogger('LessonSessionService');
   }
 
   async getCurrentSession(pathId: string, learnerId: string) {
     const path = await this.prisma.learningPath.findUnique({
       where: { id: pathId },
-      include: { learner: true },
+      include: {
+        learner: true,
+        currentSubcategory: {
+          select: {
+            id: true,
+            name: true,
+            position: true,
+          },
+        },
+      },
     });
 
     if (!path) {
@@ -121,15 +134,54 @@ export class LessonSessionService {
       throw AppError.notFound('Active milestone not found');
     }
 
+    let session: Record<string, unknown>;
+
     if (path.currentMilestone === 1) {
-      return this.buildVocabularySprintSession(pathId, path.language, path.learner.baseLanguage, milestone.id);
+      session = await this.buildVocabularySprintSession(
+        pathId,
+        path.language,
+        path.learner.baseLanguage,
+        milestone.id,
+      );
+    } else if (path.currentMilestone === 2) {
+      session = await this.buildComprehensionSession(pathId, milestone.id);
+    } else {
+      session = await this.buildPronunciationSession(pathId, milestone.id);
     }
 
-    if (path.currentMilestone === 2) {
-      return this.buildComprehensionSession(pathId, milestone.id);
-    }
+    const totalSubcategories = await this.prisma.subcategoryProgress.count({
+      where: { learningPathId: pathId },
+    });
+    const currentSubcategoryProgress = path.currentSubcategoryId
+      ? await this.prisma.subcategoryProgress.findUnique({
+        where: {
+          learningPathId_subcategoryId: {
+            learningPathId: pathId,
+            subcategoryId: path.currentSubcategoryId,
+          },
+        },
+      })
+      : null;
 
-    return this.buildPronunciationSession(pathId, milestone.id);
+    return {
+      ...session,
+      subcategory: path.currentSubcategory
+        ? {
+          id: path.currentSubcategory.id,
+          name: path.currentSubcategory.name,
+          position: path.currentSubcategory.position,
+          total: totalSubcategories,
+        }
+        : null,
+      subcategoryProgress: currentSubcategoryProgress
+        ? {
+          wordsCompleted: currentSubcategoryProgress.wordsCompleted,
+          wordsTotal: currentSubcategoryProgress.wordsTotal,
+          currentMilestone: path.currentMilestone,
+          milestonesCompleted: currentSubcategoryProgress.milestonesCompleted,
+        }
+        : null,
+    };
   }
 
   async completeCurrentSession(pathId: string, learnerId: string, input: CompleteCurrentSessionInput) {
@@ -156,15 +208,24 @@ export class LessonSessionService {
       throw AppError.badRequest('Current session expects pronunciation mastery completion');
     }
 
+    let result: Record<string, unknown>;
+
     if (path.currentMilestone === 1) {
-      return this.completeVocabularySprint(pathId, learnerId, input.wordResults || []);
+      result = await this.completeVocabularySprint(pathId, learnerId, input.wordResults || []);
+    } else if (path.currentMilestone === 2) {
+      result = await this.completeComprehension(pathId, learnerId, input.questionResponses || []);
+    } else {
+      result = await this.completePronunciationMastery(pathId, learnerId, input.pronunciationResults || []);
     }
 
-    if (path.currentMilestone === 2) {
-      return this.completeComprehension(pathId, learnerId, input.questionResponses || []);
-    }
+    await this.streakService.updateStreak(learnerId, new Date());
 
-    return this.completePronunciationMastery(pathId, learnerId, input.pronunciationResults || []);
+    return {
+      ...result,
+      subcategoryCompleted: Boolean(result.subcategoryCompleted),
+      nextSubcategory: (result.nextSubcategory as Record<string, unknown> | null) ?? null,
+      courseCompleted: Boolean(result.courseCompleted),
+    };
   }
 
   private async buildVocabularySprintSession(
@@ -598,17 +659,59 @@ export class LessonSessionService {
 
     const progress = await this.pronunciationService.getMilestoneProgress(exercises[0]?.milestoneId || '');
 
+    let subcategoryCompleted = false;
+    let nextSubcategory: {
+      id: string;
+      name: string;
+      position: number;
+      status: 'PREPARING';
+    } | null = null;
     let courseCompleted = false;
+
     if (exercises[0] && progress.isComplete) {
-      await this.prisma.learningPath.update({
+      const completionResult = await this.completeCurrentSubcategory(pathId);
+      subcategoryCompleted = completionResult.subcategoryCompleted;
+      nextSubcategory = completionResult.nextSubcategory;
+      courseCompleted = completionResult.courseCompleted;
+    }
+
+    return {
+      lessonType: 'PRONUNCIATION_MASTERY',
+      attempts,
+      progress,
+      subcategoryCompleted,
+      nextSubcategory,
+      courseCompleted,
+    };
+  }
+
+  /**
+   * Completes the current subcategory and prepares the next one.
+   * If there are no more subcategories, completes the learning path.
+   */
+  private async completeCurrentSubcategory(pathId: string): Promise<{
+    subcategoryCompleted: boolean;
+    nextSubcategory: {
+      id: string;
+      name: string;
+      position: number;
+      status: 'PREPARING';
+    } | null;
+    courseCompleted: boolean;
+  }> {
+    const completedAt = new Date();
+
+    const result = await this.prisma.$transaction(async (tx: any) => {
+      const path = await tx.learningPath.findUnique({
         where: { id: pathId },
-        data: {
-          status: 'COMPLETED',
-          completedAt: new Date(),
-        },
+        include: { learner: true },
       });
 
-      await this.prisma.milestone.update({
+      if (!path) {
+        throw AppError.notFound('Learning path not found');
+      }
+
+      await tx.milestone.update({
         where: {
           learningPathId_milestoneNumber: {
             learningPathId: pathId,
@@ -617,18 +720,39 @@ export class LessonSessionService {
         },
         data: {
           status: 'COMPLETED',
-          completedAt: new Date(),
+          completedAt,
         },
       });
 
-      courseCompleted = true;
-    }
+      // Mark all subcategories as fully compiled milestone-wise just in case
+      await tx.subcategoryProgress.updateMany({
+        where: { learningPathId: pathId },
+        data: {
+          status: 'COMPLETED',
+          completedAt,
+          milestonesCompleted: 3,
+        },
+      });
+
+      await tx.learningPath.update({
+        where: { id: pathId },
+        data: {
+          status: 'COMPLETED',
+          completedAt,
+        },
+      });
+
+      return {
+        path,
+        nextSubcategory: null,
+        courseCompleted: true,
+      };
+    });
 
     return {
-      lessonType: 'PRONUNCIATION_MASTERY',
-      attempts,
-      progress,
-      courseCompleted,
+      subcategoryCompleted: true,
+      nextSubcategory: result.nextSubcategory,
+      courseCompleted: result.courseCompleted,
     };
   }
 
@@ -683,6 +807,10 @@ export class LessonSessionService {
 
     try {
       const generatedAudioDataUri = await this.elevenLabsClient.generateSpeech(word);
+      if (!generatedAudioDataUri) {
+        return '';
+      }
+
       const uploadedAudio = await this.cloudinaryService.uploadAudioDataUri(
         generatedAudioDataUri,
         'coach-plingo/pronunciation',

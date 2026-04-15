@@ -2776,6 +2776,51 @@
                   "body": "{\n  \"success\": false,\n  \"error\": {\n    \"code\": 401,\n    \"message\": \"Unauthorized: missing or invalid bearer token\"\n  }\n}"
                 }
               ]
+            },
+            {
+              "name": "Archive Learning Path",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": "{{base_url}}/learning/paths/{{learning_path_id}}/archive",
+                "description": "Archive an active learning path."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Path Subcategories",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": "{{base_url}}/learning/paths/{{learning_path_id}}/subcategories",
+                "description": "Get subcategory progress for a learning path."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Path Readiness",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": "{{base_url}}/learning/paths/{{learning_path_id}}/readiness",
+                "description": "Check if first lesson content is ready after path creation."
+              },
+              "response": []
             }
           ]
         },
@@ -4285,7 +4330,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"jobId\": \"{{job_id}}\",\n  \"payload\": {\n    \"learningPathId\": \"{{learning_path_id}}\",\n    \"learnerId\": \"{{learner_id}}\",\n    \"language\": \"es\",\n    \"profession\": \"healthcare\",\n    \"wordsPerLesson\": 20,\n    \"globalSetId\": \"{{global_set_id}}\",\n    \"milestoneId\": \"{{milestone_id}}\",\n    \"baseLanguage\": \"en\",\n    \"excludeWords\": []\n  }\n}"
+              "raw": "{\n  \"jobId\": \"{{job_id}}\",\n  \"payload\": {\n    \"learningPathId\": \"{{learning_path_id}}\",\n    \"learnerId\": \"{{learner_id}}\",\n    \"language\": \"{{language}}\",\n    \"profession\": \"healthcare\",\n    \"currentSubcategoryId\": \"sub-healthcare-basics\",\n    \"currentSubcategoryName\": \"Healthcare Basics\",\n    \"currentSubcategoryDescription\": \"Essential introductory healthcare vocabulary\",\n    \"subcategories\": [\n      {\n        \"id\": \"sub-healthcare-basics\",\n        \"name\": \"Healthcare Basics\",\n        \"description\": \"Essential introductory healthcare vocabulary\",\n        \"wordAllocation\": 40,\n        \"position\": 1\n      },\n      {\n        \"id\": \"sub-patient-intake\",\n        \"name\": \"Patient Intake\",\n        \"description\": \"Vocabulary for patient intake and triage\",\n        \"wordAllocation\": 60,\n        \"position\": 2\n      }\n    ],\n    \"wordsPerLesson\": 20,\n    \"globalSetId\": \"{{global_set_id}}\",\n    \"milestoneId\": \"{{milestone_id}}\",\n    \"baseLanguage\": \"en\",\n    \"excludeWords\": []\n  }\n}"
             },
             "url": "{{base_url}}/jobs/generate-lesson",
             "description": "Generate AI lesson content with vocabulary words\n\n### Sample Request Body\n```json\n{\n  \"jobId\": \"job-lesson-001\",\n  \"payload\": {\n    \"learningPathId\": \"{{learning_path_id}}\",\n    \"learnerId\": \"{{learner_id}}\",\n    \"language\": \"es\",\n    \"profession\": \"software_engineer\",\n    \"wordsPerLesson\": 10,\n    \"globalSetId\": \"global-set-123\",\n    \"milestoneId\": \"milestone-123\",\n    \"baseLanguage\": \"en\",\n    \"excludeWords\": []\n  }\n}\n```\n\n### Sample Success Response\n```json\n{\n  \"success\": true,\n  \"message\": \"Generate Lesson successful\",\n  \"data\": {\n    \"operation\": \"Generate Lesson\",\n    \"method\": \"POST\",\n    \"endpoint\": \"{{base_url}}/jobs/generate-lesson\",\n    \"sample\": true,\n    \"timestamp\": \"2026-03-26T00:00:00.000Z\"\n  }\n}\n```\n\n### Sample Error Response\n```json\n{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Validation failed\",\n    \"details\": [\n      \"Sample validation error detail\"\n    ]\n  }\n}\n```"
@@ -4303,7 +4348,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"jobId\": \"job-lesson-001\",\n  \"payload\": {\n    \"learningPathId\": \"{{learning_path_id}}\",\n    \"learnerId\": \"{{learner_id}}\",\n    \"language\": \"es\",\n    \"profession\": \"software_engineer\",\n    \"wordsPerLesson\": 10,\n    \"globalSetId\": \"global-set-123\",\n    \"milestoneId\": \"milestone-123\",\n    \"baseLanguage\": \"en\",\n    \"excludeWords\": []\n  }\n}"
+                  "raw": "{\n  \"jobId\": \"{{job_id}}\",\n  \"payload\": {\n    \"learningPathId\": \"{{learning_path_id}}\",\n    \"learnerId\": \"{{learner_id}}\",\n    \"language\": \"{{language}}\",\n    \"profession\": \"healthcare\",\n    \"currentSubcategoryId\": \"sub-healthcare-basics\",\n    \"currentSubcategoryName\": \"Healthcare Basics\",\n    \"currentSubcategoryDescription\": \"Essential introductory healthcare vocabulary\",\n    \"subcategories\": [\n      {\n        \"id\": \"sub-healthcare-basics\",\n        \"name\": \"Healthcare Basics\",\n        \"description\": \"Essential introductory healthcare vocabulary\",\n        \"wordAllocation\": 40,\n        \"position\": 1\n      },\n      {\n        \"id\": \"sub-patient-intake\",\n        \"name\": \"Patient Intake\",\n        \"description\": \"Vocabulary for patient intake and triage\",\n        \"wordAllocation\": 60,\n        \"position\": 2\n      }\n    ],\n    \"wordsPerLesson\": 20,\n    \"globalSetId\": \"{{global_set_id}}\",\n    \"milestoneId\": \"{{milestone_id}}\",\n    \"baseLanguage\": \"en\",\n    \"excludeWords\": []\n  }\n}"
                 },
                 "url": "{{base_url}}/jobs/generate-lesson",
                 "description": "Generate AI lesson content with vocabulary words\n\n### Sample Request Body\n```json\n{\n  \"jobId\": \"job-lesson-001\",\n  \"payload\": {\n    \"learningPathId\": \"{{learning_path_id}}\",\n    \"learnerId\": \"{{learner_id}}\",\n    \"language\": \"es\",\n    \"profession\": \"software_engineer\",\n    \"wordsPerLesson\": 10,\n    \"globalSetId\": \"global-set-123\",\n    \"milestoneId\": \"milestone-123\",\n    \"baseLanguage\": \"en\",\n    \"excludeWords\": []\n  }\n}\n```\n\n### Sample Success Response\n```json\n{\n  \"success\": true,\n  \"message\": \"Generate Lesson successful\",\n  \"data\": {\n    \"operation\": \"Generate Lesson\",\n    \"method\": \"POST\",\n    \"endpoint\": \"{{base_url}}/jobs/generate-lesson\",\n    \"sample\": true,\n    \"timestamp\": \"2026-03-26T00:00:00.000Z\"\n  }\n}\n```\n\n### Sample Error Response\n```json\n{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Validation failed\",\n    \"details\": [\n      \"Sample validation error detail\"\n    ]\n  }\n}\n```"
@@ -4332,7 +4377,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"jobId\": \"job-lesson-001\",\n  \"payload\": {\n    \"learningPathId\": \"{{learning_path_id}}\",\n    \"learnerId\": \"{{learner_id}}\",\n    \"language\": \"es\",\n    \"profession\": \"software_engineer\",\n    \"wordsPerLesson\": 10,\n    \"globalSetId\": \"global-set-123\",\n    \"milestoneId\": \"milestone-123\",\n    \"baseLanguage\": \"en\",\n    \"excludeWords\": []\n  }\n}"
+                  "raw": "{\n  \"jobId\": \"{{job_id}}\",\n  \"payload\": {\n    \"learningPathId\": \"{{learning_path_id}}\",\n    \"learnerId\": \"{{learner_id}}\",\n    \"language\": \"{{language}}\",\n    \"profession\": \"healthcare\",\n    \"currentSubcategoryId\": \"sub-healthcare-basics\",\n    \"currentSubcategoryName\": \"Healthcare Basics\",\n    \"currentSubcategoryDescription\": \"Essential introductory healthcare vocabulary\",\n    \"subcategories\": [\n      {\n        \"id\": \"sub-healthcare-basics\",\n        \"name\": \"Healthcare Basics\",\n        \"description\": \"Essential introductory healthcare vocabulary\",\n        \"wordAllocation\": 40,\n        \"position\": 1\n      },\n      {\n        \"id\": \"sub-patient-intake\",\n        \"name\": \"Patient Intake\",\n        \"description\": \"Vocabulary for patient intake and triage\",\n        \"wordAllocation\": 60,\n        \"position\": 2\n      }\n    ],\n    \"wordsPerLesson\": 20,\n    \"globalSetId\": \"{{global_set_id}}\",\n    \"milestoneId\": \"{{milestone_id}}\",\n    \"baseLanguage\": \"en\",\n    \"excludeWords\": []\n  }\n}"
                 },
                 "url": "{{base_url}}/jobs/generate-lesson",
                 "description": "Generate AI lesson content with vocabulary words\n\n### Sample Request Body\n```json\n{\n  \"jobId\": \"job-lesson-001\",\n  \"payload\": {\n    \"learningPathId\": \"{{learning_path_id}}\",\n    \"learnerId\": \"{{learner_id}}\",\n    \"language\": \"es\",\n    \"profession\": \"software_engineer\",\n    \"wordsPerLesson\": 10,\n    \"globalSetId\": \"global-set-123\",\n    \"milestoneId\": \"milestone-123\",\n    \"baseLanguage\": \"en\",\n    \"excludeWords\": []\n  }\n}\n```\n\n### Sample Success Response\n```json\n{\n  \"success\": true,\n  \"message\": \"Generate Lesson successful\",\n  \"data\": {\n    \"operation\": \"Generate Lesson\",\n    \"method\": \"POST\",\n    \"endpoint\": \"{{base_url}}/jobs/generate-lesson\",\n    \"sample\": true,\n    \"timestamp\": \"2026-03-26T00:00:00.000Z\"\n  }\n}\n```\n\n### Sample Error Response\n```json\n{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Validation failed\",\n    \"details\": [\n      \"Sample validation error detail\"\n    ]\n  }\n}\n```"
@@ -4663,6 +4708,61 @@
               "body": "{\n  \"success\": true,\n  \"data\": {\n    \"attempt\": {\n      \"id\": \"{{attempt_id}}\",\n      \"exerciseId\": \"{{exercise_id}}\",\n      \"accuracyScore\": 9.1,\n      \"passed\": true,\n      \"attemptedAt\": \"2026-03-28T00:00:00.000Z\"\n    },\n    \"scoringSource\": \"transcript_similarity\",\n    \"transcriptUsed\": \"consulta medica urgente\",\n    \"targetText\": \"consulta médica urgente\",\n    \"milestoneProgress\": {\n      \"totalExercises\": 10,\n      \"passedExercises\": 5,\n      \"isComplete\": false\n    },\n    \"pathCompleted\": false\n  }\n}"
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Catalog",
+      "item": [
+        {
+          "name": "List Languages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/catalog/languages",
+            "description": "List available languages."
+          },
+          "response": []
+        },
+        {
+          "name": "List Professions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/catalog/professions",
+            "description": "List available professions."
+          },
+          "response": []
+        },
+        {
+          "name": "List Profession Subcategories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/catalog/professions/{{profession_id}}/subcategories?language={{language}}",
+            "description": "List profession subcategories for a selected language."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Learner",
+      "item": [
+        {
+          "name": "Get Streak",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/learner/streak",
+            "description": "Get learner streak information."
+          },
+          "response": []
         }
       ]
     }

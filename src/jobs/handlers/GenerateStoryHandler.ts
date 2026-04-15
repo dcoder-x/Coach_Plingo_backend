@@ -79,7 +79,8 @@ export class GenerateStoryHandler {
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown story job error';
-      await this.aiService.markFailed(jobId, message, false);
+      const shouldRetry = ClaudeClient.isRetriableError(error);
+      await this.aiService.markFailed(jobId, message, shouldRetry);
       await this.notificationService.notifyError(payload.learnerId, 'Story generation failed.');
       throw error;
     }

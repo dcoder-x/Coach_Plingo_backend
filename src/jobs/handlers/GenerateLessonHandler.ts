@@ -28,10 +28,12 @@ export class GenerateLessonHandler {
     await this.aiService.markProcessing(jobId);
 
     try {
-      const unusedWords = await this.vocabularyService.getUnusedWordsFromGlobalSet(
+      const subcategoryTag = this.vocabularyService.getSubcategoryTag(payload.currentSubcategoryId);
+      const unusedWords = await this.vocabularyService.getUnusedWordsForSubcategoryFromGlobalSet(
         payload.globalSetId,
         payload.learningPathId,
         payload.wordsPerLesson,
+        payload.currentSubcategoryId,
         payload.excludeWords,
       );
 
@@ -41,23 +43,47 @@ export class GenerateLessonHandler {
         const generatedWords = await this.claudeClient.generateLessonWords({
           profession: payload.profession,
           language: payload.language,
+          currentSubcategory: {
+            id: payload.currentSubcategoryId,
+            name: payload.currentSubcategoryName,
+            description: payload.currentSubcategoryDescription,
+          },
+          allSubcategories: payload.subcategories,
           count: payload.wordsPerLesson - selectedWords.length,
           excludeWords: [...payload.excludeWords, ...selectedWords.map((word) => word.word)],
         });
 
+        const normalizedNameToId = new Map(
+          payload.subcategories.map((subcategory) => [subcategory.name.trim().toLowerCase(), subcategory.id]),
+        );
+
+        const validGeneratedWords = generatedWords
+          .map((word) => {
+            const resolvedSubcategoryId = normalizedNameToId.get(word.subcategory.trim().toLowerCase());
+            if (!resolvedSubcategoryId || resolvedSubcategoryId !== payload.currentSubcategoryId) {
+              return null;
+            }
+
+            return {
+              ...word,
+              resolvedSubcategoryId,
+            };
+          })
+          .filter((word): word is NonNullable<typeof word> => word !== null);
+
         const persistedWords = await this.vocabularyService.addWordsToGlobalSet(
           payload.globalSetId,
-          generatedWords.map<WordData>((word) => ({
+          validGeneratedWords.map<WordData>((word) => ({
             word: word.word,
             complexityLevel: word.complexityLevel,
             examplePhrases: word.examplePhrases,
             exampleSentences: word.exampleSentences,
-            tags: word.tags,
+            tags: Array.from(new Set([...(word.tags || []), subcategoryTag])),
           })),
         );
 
         for (const persistedWord of persistedWords) {
-          const generated = generatedWords.find(
+          const generated = validGeneratedWords.find(
             (word) => word.word.toLowerCase() === persistedWord.word.toLowerCase(),
           );
 
@@ -70,7 +96,9 @@ export class GenerateLessonHandler {
           }
         }
 
-        selectedWords.push(...persistedWords);
+        selectedWords.push(
+          ...persistedWords.filter((word) => this.vocabularyService.wordHasSubcategory(word.tags, payload.currentSubcategoryId)),
+        );
       }
 
       const wordsForLesson = selectedWords.slice(0, payload.wordsPerLesson);
@@ -110,7 +138,8 @@ export class GenerateLessonHandler {
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown lesson job error';
-      await this.aiService.markFailed(jobId, message, false);
+      const shouldRetry = ClaudeClient.isRetriableError(error);
+      await this.aiService.markFailed(jobId, message, shouldRetry);
       await this.notificationService.notifyError(payload.learnerId, 'Lesson generation failed.');
       throw error;
     }

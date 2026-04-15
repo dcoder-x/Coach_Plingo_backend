@@ -3,6 +3,7 @@ import {
   GeneratedLessonWord,
   GeneratedPronunciationExercise,
   GeneratedStoryContent,
+  generateFallbackLessonWords,
   generateFallbackPronunciationExercises,
   generateFallbackStory,
 } from '../contentGenerators';
@@ -39,22 +40,65 @@ export class ClaudeClient {
     this.logger = new SimpleLogger('ClaudeClient');
   }
 
+  static isRetriableError(error: unknown): boolean {
+    if (!axios.isAxiosError(error)) {
+      return false;
+    }
+
+    const status = error.response?.status;
+    const code = error.code;
+
+    if (!status && !!code) {
+      return true;
+    }
+
+    if (!status) {
+      return false;
+    }
+
+    return status === 408 || status === 429 || status >= 500;
+  }
+
   async generateLessonWords(input: {
     profession: string;
     language: string;
+    currentSubcategory: {
+      id: string;
+      name: string;
+      description?: string;
+    };
+    allSubcategories: Array<{
+      id: string;
+      name: string;
+      description?: string;
+      wordAllocation: number;
+      position: number;
+    }>;
     count: number;
     excludeWords: string[];
   }): Promise<GeneratedLessonWord[]> {
+    const fallback = generateFallbackLessonWords({
+      profession: input.profession,
+      language: input.language,
+      subcategory: input.currentSubcategory.name,
+      count: input.count,
+      excludeWords: input.excludeWords,
+    });
+
     return this.requestJson<{ words: GeneratedLessonWord[] } | GeneratedLessonWord[]>({
       system: 'You create professional language-learning vocabulary. Return strict JSON only.',
       prompt: [
         `Generate ${input.count} ${input.language} vocabulary words for the profession ${input.profession}.`,
+        `Current target subcategory: ${input.currentSubcategory.name}${input.currentSubcategory.description ? ` (${input.currentSubcategory.description})` : ''}.`,
+        `All available subcategories for context: ${input.allSubcategories.map((subcategory) => `${subcategory.name} [${subcategory.wordAllocation}]`).join(', ')}.`,
         `Avoid these words: ${input.excludeWords.join(', ') || 'none'}.`,
-        'Return a valid JSON object with this exact shape: {"words":[{"word":"...","translation":"...","complexityLevel":"BEGINNER|INTERMEDIATE|ADVANCED","examplePhrases":["..."],"exampleSentences":["..."],"tags":["..."]}]}.',
-        'Use concise text to stay within output limits: each example phrase <= 4 words, each example sentence <= 10 words.',
+        `Every returned word must belong to subcategory "${input.currentSubcategory.name}".`,
+        'Return a valid JSON object with this exact shape: {"words":[{"word":"...","translation":"...","subcategory":"...","complexityLevel":"BEGINNER|INTERMEDIATE|ADVANCED","examplePhrases":[{"text":"...","translation":"...","keywords":[{"word":"...","translation":"...","pronunciation":"..."}]}],"exampleSentences":[{"text":"...","translation":"...","keywords":[{"word":"...","translation":"...","pronunciation":"..."}]}],"tags":["..."]}]}.',
+        'Limit to exactly 1 example phrase and 1 example sentence per word to conserve output tokens. Limit phrase to 4 words. Limit sentence to 8 words.',
         'Never truncate output. If you cannot complete all items, still return valid JSON with as many complete items as possible.',
       ].join(' '),
-      maxTokens: 3200,
+      fallback,
+      maxTokens: 4500,
       validator: (value): value is { words: GeneratedLessonWord[] } | GeneratedLessonWord[] =>
         Array.isArray(value) ||
         (typeof value === 'object' && value !== null && Array.isArray((value as { words?: unknown }).words)),

@@ -63,6 +63,16 @@ export class CatalogController {
     }
   }
 
+  async listProfessionSubcategories(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const result = await this.service.getProfessionSubcategories(id);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async createProfession(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const input: CreateProfessionInput = req.body;

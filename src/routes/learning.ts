@@ -15,6 +15,10 @@ const pathIdSchema = z.object({
   id: z.string().min(1, 'Invalid path ID'),
 });
 
+const learningPathsQuerySchema = z.object({
+  status: z.enum(['ACTIVE', 'PAUSED', 'COMPLETED', 'ARCHIVED']).optional(),
+});
+
 /**
  * POST /learning/paths
  * Create new learning path
@@ -33,6 +37,7 @@ router.post(
 router.get(
   '/paths',
   authenticateToken,
+  validate({ query: learningPathsQuerySchema }),
   (req, res, next) => controller.getPaths(req, res, next),
 );
 
@@ -43,8 +48,30 @@ router.get(
 router.get(
   '/paths/:id',
   authenticateToken,
-  // validate({ params: pathIdSchema }),
+  validate({ params: pathIdSchema }),
   (req, res, next) => controller.getPath(req, res, next),
+);
+
+/**
+ * PATCH /learning/paths/:id/archive
+ * Archive active learning path
+ */
+router.patch(
+  '/paths/:id/archive',
+  authenticateToken,
+  validate({ params: pathIdSchema }),
+  (req, res, next) => controller.archivePath(req, res, next),
+);
+
+/**
+ * GET /learning/paths/:id/subcategories
+ * Get path-level subcategory progress
+ */
+router.get(
+  '/paths/:id/subcategories',
+  authenticateToken,
+  validate({ params: pathIdSchema }),
+  (req, res, next) => controller.getPathSubcategories(req, res, next),
 );
 
 /**

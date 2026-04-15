@@ -41,11 +41,21 @@ interface LearnerWordStateRecord {
   updatedAt: Date;
 }
 
+export interface SentenceExample {
+  text: string;
+  translation: string;
+  keywords: Array<{
+    word: string;
+    translation: string;
+    pronunciation: string;
+  }>;
+}
+
 export interface WordData {
   word: string;
   complexityLevel: DifficultyBand;
-  examplePhrases: string[];
-  exampleSentences: string[];
+  examplePhrases: SentenceExample[];
+  exampleSentences: SentenceExample[];
   tags: string[];
 }
 
@@ -133,7 +143,14 @@ export class VocabularyService {
 
       if (existing) {
         this.logger.debug(`Word already exists in set: ${wordData.word}`);
-        createdWords.push(existing);
+        const mergedTags = this.mergeTags(existing.tags, wordData.tags);
+        const updated = await this.prisma.globalVocabularyWord.update({
+          where: { id: existing.id },
+          data: {
+            tags: mergedTags,
+          },
+        });
+        createdWords.push(updated);
         continue;
       }
 
@@ -142,8 +159,8 @@ export class VocabularyService {
           setId,
           word: wordData.word,
           complexityLevel: wordData.complexityLevel,
-          examplePhrases: wordData.examplePhrases,
-          exampleSentences: wordData.exampleSentences,
+          examplePhrases: wordData.examplePhrases as any,
+          exampleSentences: wordData.exampleSentences as any,
           tags: wordData.tags,
         },
       });
@@ -207,6 +224,74 @@ export class VocabularyService {
     );
 
     return unused;
+  }
+
+  async getUnusedWordsForSubcategoryFromGlobalSet(
+    setId: string,
+    learningPathId: string,
+    count: number,
+    subcategoryId: string,
+    excludeWords: string[] = [],
+  ): Promise<GlobalVocabularyWordRecord[]> {
+    const assignedWordIds = await this.prisma.learnerWordState
+      .findMany({
+        where: { learningPathId },
+        select: { wordId: true },
+      })
+      .then((states: Array<{ wordId: string }>) => states.map((s) => s.wordId));
+
+    const filteredWords: GlobalVocabularyWordRecord[] = [];
+    let skip = 0;
+    const pageSize = Math.max(count * 3, 50);
+
+    while (filteredWords.length < count) {
+      const page = await this.prisma.globalVocabularyWord.findMany({
+        where: {
+          setId,
+          id: {
+            notIn: assignedWordIds,
+          },
+          word: {
+            notIn: excludeWords,
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+        skip,
+        take: pageSize,
+      });
+
+      if (page.length === 0) {
+        break;
+      }
+
+      const matching = page.filter((word) => this.wordHasSubcategory(word.tags, subcategoryId));
+      filteredWords.push(...matching);
+
+      skip += page.length;
+    }
+
+    return filteredWords.slice(0, count);
+  }
+
+  getSubcategoryTag(subcategoryId: string): string {
+    return `subcategory:${subcategoryId}`;
+  }
+
+  wordHasSubcategory(tags: unknown, subcategoryId: string): boolean {
+    if (!Array.isArray(tags)) {
+      return false;
+    }
+
+    const expected = this.getSubcategoryTag(subcategoryId);
+    return tags.some((tag) => typeof tag === 'string' && tag.toLowerCase() === expected.toLowerCase());
+  }
+
+  mergeTags(existingTags: unknown, incomingTags: string[]): string[] {
+    const base = Array.isArray(existingTags)
+      ? existingTags.filter((tag): tag is string => typeof tag === 'string')
+      : [];
+
+    return Array.from(new Set([...base, ...incomingTags]));
   }
 
   /**

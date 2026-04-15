@@ -47,9 +47,6 @@ export class ProgressService {
   private learningService: LearningService;
   private vocabularyService: VocabularyService;
 
-  // Vocabulary sprint word target for milestone 1
-  private readonly MILESTONE_1_TARGET = 500;
-
   // Mastery calculation weights
   private readonly WEIGHTS = {
     usageAccuracy: 0.5, // 50%
@@ -78,6 +75,9 @@ export class ProgressService {
           learningPathId: input.learningPathId,
           wordId: input.wordId,
         },
+      },
+      include: {
+        word: { select: { tags: true } },
       },
     });
 
@@ -113,9 +113,37 @@ export class ProgressService {
       `Recorded attempt for word ${input.wordId}: mastery ${newMasteryScore.toFixed(2)}/10 (isMastered: ${isMastered})`,
     );
 
+    if (becameMastered) {
+      // Find the subcategory ID from the tags
+      let subcategoryId: string | null = null;
+      if (Array.isArray(wordState.word.tags)) {
+        const subcatTag = wordState.word.tags.find((tag: any) => typeof tag === 'string' && tag.startsWith('subcategory:'));
+        if (subcatTag) {
+          subcategoryId = (subcatTag as string).split(':')[1] || null;
+        }
+      }
+
+      // If we found a subcategory, increment its completion count
+      if (subcategoryId) {
+        await this.prisma.subcategoryProgress.update({
+          where: {
+            learningPathId_subcategoryId: {
+              learningPathId: input.learningPathId,
+              subcategoryId,
+            },
+          },
+          data: {
+            wordsCompleted: { increment: 1 },
+          },
+        }).catch(err => {
+           this.logger.error(`Failed to increment subcategory progress: ${err.message}`);
+        });
+      }
+    }
+
     // If word just crossed mastery threshold, check whether milestone 1 sprint is complete
     if (becameMastered) {
-      this.vocabularyService.promoteNextWord(input.learningPathId).catch((err) => {
+      await this.vocabularyService.promoteNextWord(input.learningPathId).catch((err) => {
         this.logger.error(
           `Window refill failed for path ${input.learningPathId}: ${
             err instanceof Error ? err.message : String(err)
@@ -123,7 +151,10 @@ export class ProgressService {
         );
       });
 
-      this.checkMilestone1Completion(input.learningPathId).catch((err) => {
+      // Refill logic: Check if we need to generate more words
+      await this.triggerRefillIfEmpty(input.learningPathId);
+
+      await this.checkMilestone1Completion(input.learningPathId).catch((err) => {
         this.logger.error(
           `Milestone advancement check failed for path ${input.learningPathId}: ${
             err instanceof Error ? err.message : String(err)
@@ -133,6 +164,24 @@ export class ProgressService {
     }
 
     return updated;
+  }
+
+  private async triggerRefillIfEmpty(learningPathId: string): Promise<void> {
+    const queueThreshold = 5; // e.g., if there are 5 or fewer words locked
+    const lockedCount = await this.prisma.learnerWordState.count({
+      where: { learningPathId, status: 'LOCKED' },
+    });
+
+    if (lockedCount <= queueThreshold) {
+      this.logger.info(`Locked queue low (${lockedCount} left). Checking for refill on path ${learningPathId}...`);
+      // We need to trigger the generation controller or service, but ProgressService currently
+      // doesn't inject AIService to avoid circular deps. The safest way is to call LearningService 
+      // or implement a generic event trigger.
+      // Wait: Since ProgressService already has LearningService, we can add a trigger in LearningService.
+      await this.learningService.triggerLessonReplenishment(learningPathId).catch(err => {
+         this.logger.error(`Replenishment failed: ${err.message}`);
+      });
+    }
   }
 
   /**
@@ -146,17 +195,31 @@ export class ProgressService {
       select: { currentMilestone: true },
     });
 
-    // Only act when the path is still on milestone 1
     if (!path || path.currentMilestone !== 1) return;
 
-    const masteredCount = await this.prisma.learnerWordState.count({
-      where: { learningPathId, status: 'MASTERED' },
+    const allSubcategoryProgress = await this.prisma.subcategoryProgress.findMany({
+      where: { learningPathId },
+      select: {
+        wordsCompleted: true,
+        wordsTotal: true,
+      },
     });
 
-    if (masteredCount >= this.MILESTONE_1_TARGET) {
+    if (allSubcategoryProgress.length === 0) return;
+
+    let totalCompleted = 0;
+    let totalAssigned = 0;
+    for (const sub of allSubcategoryProgress) {
+      totalCompleted += sub.wordsCompleted;
+      totalAssigned += sub.wordsTotal;
+    }
+
+    // We consider Milestone 1 complete when 100% of the allocated 500 words across
+    // all subcategories are mastered (or if they somehow completed more).
+    if (totalAssigned > 0 && totalCompleted >= totalAssigned) {
       await this.learningService.advanceToNextMilestone(learningPathId);
       this.logger.info(
-        `Auto-advanced path ${learningPathId} to milestone 2 — ${masteredCount}/${this.MILESTONE_1_TARGET} words mastered`,
+        `Auto-advanced path ${learningPathId} to milestone 2 — ${totalCompleted}/${totalAssigned} words mastered across entire profession`,
       );
     }
   }
@@ -374,7 +437,7 @@ export class ProgressService {
 
   /**
    * Get milestone progress percentage
-   * For Milestone 1: (masteredWords / 500) * 100
+   * For Milestone 1: uses active subcategory allocation.
    */
   async getMilestoneProgress(learningPathId: string, milestoneNumber: 1 | 2 | 3): Promise<{
     progress: number;
@@ -382,15 +445,21 @@ export class ProgressService {
     targetWords: number;
   }> {
     if (milestoneNumber === 1) {
-      const masteredWords = await this.prisma.learnerWordState.count({
-        where: {
-          learningPathId,
-          status: 'MASTERED',
+      const subcategoryProgresses = await this.prisma.subcategoryProgress.findMany({
+        where: { learningPathId },
+        select: {
+          wordsCompleted: true,
+          wordsTotal: true,
         },
       });
 
-      const targetWords = 500; // Vocabulary sprint target
-      const progress = Math.min((masteredWords / targetWords) * 100, 100);
+      if (subcategoryProgresses.length === 0) {
+        return { progress: 0, masteredWords: 0, targetWords: 0 };
+      }
+
+      const masteredWords = subcategoryProgresses.reduce((sum, sp) => sum + sp.wordsCompleted, 0);
+      const targetWords = subcategoryProgresses.reduce((sum, sp) => sum + sp.wordsTotal, 0);
+      const progress = targetWords > 0 ? Math.min((masteredWords / targetWords) * 100, 100) : 0;
 
       return { progress, masteredWords, targetWords };
     }

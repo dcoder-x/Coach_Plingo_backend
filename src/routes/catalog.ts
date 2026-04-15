@@ -20,6 +20,8 @@ const idParamSchema = z.object({
   id: z.string().min(1, 'Invalid id'),
 });
 
+
+
 router.get('/languages', validate({ query: includeInactiveQuerySchema }), (req, res, next) =>
   controller.listLanguages(req, res, next),
 );
@@ -38,6 +40,11 @@ router.delete('/languages/:id', authenticateToken, validate({ params: idParamSch
 
 router.get('/professions', validate({ query: includeInactiveQuerySchema }), (req, res, next) =>
   controller.listProfessions(req, res, next),
+);
+router.get(
+  '/professions/:id/subcategories',
+  validate({ params: idParamSchema }),
+  (req, res, next) => controller.listProfessionSubcategories(req, res, next),
 );
 router.post(
   '/professions',

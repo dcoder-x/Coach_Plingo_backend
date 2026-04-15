@@ -9,6 +9,7 @@ describe('contentGenerators', () => {
     const words = generateFallbackLessonWords({
       profession: 'healthcare',
       language: 'Spanish',
+      subcategory: 'Nursing',
       count: 4,
       excludeWords: ['consulta'],
     });
@@ -18,6 +19,7 @@ describe('contentGenerators', () => {
     expect(words[0]).toEqual(
       expect.objectContaining({
         translation: expect.any(String),
+        subcategory: 'Nursing',
         examplePhrases: expect.any(Array),
         exampleSentences: expect.any(Array),
       }),

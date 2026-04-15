@@ -115,7 +115,7 @@ export class VocabularyController {
       const set = await this.vocabularyService.getOrCreateGlobalSet(
         language as string,
         profession as string,
-        (difficulty as any) || 'BEGINNER',
+        (difficulty as 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED' | undefined) || 'BEGINNER',
       );
 
       const stats = await this.vocabularyService.getGlobalSetStats(set.id);

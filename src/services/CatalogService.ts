@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, LanguageOption, ProfessionOption } from '@prisma/client';
 import { AppError } from '../utils/AppError';
 
 export const createLanguageSchema = z.object({
@@ -48,16 +48,16 @@ export type CreateProfessionInput = z.infer<typeof createProfessionSchema>;
 export type UpdateProfessionInput = z.infer<typeof updateProfessionSchema>;
 
 export class CatalogService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient) { }
 
-  async listLanguages(includeInactive = false) {
+  async listLanguages(includeInactive = false): Promise<LanguageOption[]> {
     return this.prisma.languageOption.findMany({
       where: includeInactive ? undefined : { isActive: true },
       orderBy: { name: 'asc' },
     });
   }
 
-  async createLanguage(input: CreateLanguageInput) {
+  async createLanguage(input: CreateLanguageInput): Promise<LanguageOption> {
     return this.prisma.languageOption.create({
       data: {
         code: input.code,
@@ -67,7 +67,7 @@ export class CatalogService {
     });
   }
 
-  async updateLanguage(id: string, input: UpdateLanguageInput) {
+  async updateLanguage(id: string, input: UpdateLanguageInput): Promise<LanguageOption> {
     const existing = await this.prisma.languageOption.findUnique({ where: { id } });
     if (!existing) {
       throw AppError.notFound('Language not found');
@@ -79,7 +79,7 @@ export class CatalogService {
     });
   }
 
-  async deleteLanguage(id: string) {
+  async deleteLanguage(id: string): Promise<void> {
     const existing = await this.prisma.languageOption.findUnique({ where: { id } });
     if (!existing) {
       throw AppError.notFound('Language not found');
@@ -88,14 +88,70 @@ export class CatalogService {
     await this.prisma.languageOption.delete({ where: { id } });
   }
 
-  async listProfessions(includeInactive = false) {
+  async listProfessions(includeInactive = false): Promise<ProfessionOption[]> {
     return this.prisma.professionOption.findMany({
       where: includeInactive ? undefined : { isActive: true },
       orderBy: { name: 'asc' },
+      include: {
+        subCategories: true
+      }
     });
   }
 
-  async createProfession(input: CreateProfessionInput) {
+  async getProfessionSubcategories(
+    professionId: string,
+  ): Promise<{
+    profession: string;
+    subcategories: Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      wordAllocation: number;
+      position: number;
+    }>;
+  }> {
+    const profession = await this.prisma.professionOption.findUnique({
+      where: { id: professionId },
+      select: { id: true, slug: true },
+    });
+
+    if (!profession) {
+      throw AppError.notFound('Profession not found');
+    }
+
+    const subcategories = await this.prisma.professionSubcategory.findMany({
+      where: {
+        professionId: profession.id,
+      },
+      orderBy: { position: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        position: true,
+      },
+    });
+
+    const totalSubcategories = subcategories.length;
+    const baseAllocation = totalSubcategories > 0 ? Math.floor(500 / totalSubcategories) : 0;
+    let remainder = totalSubcategories > 0 ? 500 % totalSubcategories : 0;
+
+    const subcategoriesWithAllocation = subcategories.map((sub) => {
+      const allocation = baseAllocation + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder--;
+      return {
+        ...sub,
+        wordAllocation: allocation,
+      };
+    });
+
+    return {
+      profession: profession.slug,
+      subcategories: subcategoriesWithAllocation,
+    };
+  }
+
+  async createProfession(input: CreateProfessionInput): Promise<ProfessionOption> {
     return this.prisma.professionOption.create({
       data: {
         slug: input.slug,
@@ -105,7 +161,7 @@ export class CatalogService {
     });
   }
 
-  async updateProfession(id: string, input: UpdateProfessionInput) {
+  async updateProfession(id: string, input: UpdateProfessionInput): Promise<ProfessionOption> {
     const existing = await this.prisma.professionOption.findUnique({ where: { id } });
     if (!existing) {
       throw AppError.notFound('Profession not found');
@@ -117,7 +173,7 @@ export class CatalogService {
     });
   }
 
-  async deleteProfession(id: string) {
+  async deleteProfession(id: string): Promise<void> {
     const existing = await this.prisma.professionOption.findUnique({ where: { id } });
     if (!existing) {
       throw AppError.notFound('Profession not found');

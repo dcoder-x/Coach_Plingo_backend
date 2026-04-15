@@ -33,6 +33,16 @@ export interface GenerateLessonJobPayload {
   learnerId: string;
   language: string;
   profession: string;
+  currentSubcategoryId: string;
+  currentSubcategoryName: string;
+  currentSubcategoryDescription?: string;
+  subcategories: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    wordAllocation: number;
+    position: number;
+  }>;
   wordsPerLesson: number;
   globalSetId: string;
   milestoneId: string;
@@ -88,7 +98,14 @@ export class AIService {
       throw new Error('UPSTASH_QSTASH_TOKEN is not configured');
     }
 
-    this.qstash = new QStashClient({ token: qstashToken });
+    const qstashBaseUrl =
+      process.env.UPSTASH_QSTASH_URL?.trim() ||
+      process.env.QSTASH_URL?.trim();
+
+    this.qstash = new QStashClient({
+      token: qstashToken,
+      ...(qstashBaseUrl ? { baseUrl: qstashBaseUrl } : {}),
+    });
 
     const configuredBaseUrl = process.env.WEBHOOK_BASE_URL?.trim();
     const vercelUrl = process.env.VERCEL_URL?.trim();
@@ -132,6 +149,42 @@ export class AIService {
     }
   }
 
+  private getJobWebhookPath(type: JobType): string | null {
+    switch (type) {
+    case 'GENERATE_LESSON':
+      return '/jobs/generate-lesson';
+    case 'GENERATE_STORY':
+      return '/jobs/generate-story';
+    case 'GENERATE_EXERCISES':
+      return '/jobs/generate-exercises';
+    default:
+      return null;
+    }
+  }
+
+  private getRetryDelaySeconds(nextRetryAttempt: number): number {
+    const schedule = [30, 120, 300];
+    return schedule[Math.min(nextRetryAttempt - 1, schedule.length - 1)];
+  }
+
+  private async publishJob(jobId: string, type: JobType, payload: JobPayload, delaySeconds?: number): Promise<void> {
+    this.ensureQueueCallbackUrlIsValid();
+
+    const webhookPath = this.getJobWebhookPath(type);
+    if (!webhookPath) {
+      throw new Error(`Unsupported job type for queue publish: ${type}`);
+    }
+
+    await this.qstash.publishJSON({
+      url: `${this.webookBaseUrl}${webhookPath}`,
+      body: {
+        jobId,
+        payload,
+      },
+      ...(typeof delaySeconds === 'number' ? { delay: delaySeconds } : {}),
+    });
+  }
+
   /**
    * Queue a lesson generation job
    * Async job: Claude generates N words for the lesson
@@ -147,16 +200,7 @@ export class AIService {
     });
 
     try {
-      this.ensureQueueCallbackUrlIsValid();
-
-      // Send to QStash
-      await this.qstash.publishJSON({
-        url: `${this.webookBaseUrl}/jobs/generate-lesson`,
-        body: {
-          jobId: job.id,
-          payload,
-        },
-      });
+      await this.publishJob(job.id, 'GENERATE_LESSON', payload);
 
       this.logger.info(`Queued lesson generation: ${job.id}`);
 
@@ -198,15 +242,7 @@ export class AIService {
     });
 
     try {
-      this.ensureQueueCallbackUrlIsValid();
-
-      await this.qstash.publishJSON({
-        url: `${this.webookBaseUrl}/jobs/generate-story`,
-        body: {
-          jobId: job.id,
-          payload,
-        },
-      });
+      await this.publishJob(job.id, 'GENERATE_STORY', payload);
 
       this.logger.info(`Queued story generation: ${job.id}`);
 
@@ -246,15 +282,7 @@ export class AIService {
     });
 
     try {
-      this.ensureQueueCallbackUrlIsValid();
-
-      await this.qstash.publishJSON({
-        url: `${this.webookBaseUrl}/jobs/generate-exercises`,
-        body: {
-          jobId: job.id,
-          payload,
-        },
-      });
+      await this.publishJob(job.id, 'GENERATE_EXERCISES', payload);
 
       this.logger.info(`Queued exercises generation: ${job.id}`);
 
@@ -367,17 +395,36 @@ export class AIService {
       this.logger.warn(
         `Job failed, will retry: ${jobId} (attempt ${job.currentRetry + 1}/${job.maxRetries})`,
       );
+
+      const nextRetry = job.currentRetry + 1;
       await this.prisma.asyncJob.update({
         where: { id: jobId },
         data: {
           status: 'PENDING' as JobStatus,
-          currentRetry: job.currentRetry + 1,
+          currentRetry: nextRetry,
           error,
-          attemptedAt: {
-            push: new Date(),
-          },
         },
       });
+
+      try {
+        const payload = job.payload as JobPayload;
+        const delaySeconds = this.getRetryDelaySeconds(nextRetry);
+        await this.publishJob(job.id, job.type, payload, delaySeconds);
+      } catch (requeueError) {
+        const requeueMessage =
+          requeueError instanceof Error ? requeueError.message : 'Unknown queue re-publish error';
+
+        this.logger.error(`Failed to requeue retry for job ${job.id}: ${requeueMessage}`);
+
+        await this.prisma.asyncJob.update({
+          where: { id: job.id },
+          data: {
+            status: 'FAILED' as JobStatus,
+            error: `${error} | retry_queue_error=${requeueMessage}`,
+            completedAt: new Date(),
+          },
+        });
+      }
     } else {
       this.logger.error(`Job failed permanently: ${jobId} - ${error}`);
       await this.prisma.asyncJob.update({

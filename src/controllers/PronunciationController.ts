@@ -24,25 +24,31 @@ export class PronunciationController {
     try {
       const word = String(req.query.word || '').trim();
       const language = String(req.query.language || '').trim();
+      const wordId = String(req.query.wordId || '').trim();
 
-      const vocabularyWord = await this.prisma.globalVocabularyWord.findFirst({
-        where: {
-          word: {
-            equals: word,
-            mode: 'insensitive',
+      // Prefer direct wordId lookup (stable) over text+language search (fragile)
+      let vocabularyWord: { id: string; word: string } | null = null;
+
+      if (wordId) {
+        vocabularyWord = await this.prisma.globalVocabularyWord.findUnique({
+          where: { id: wordId },
+          select: { id: true, word: true },
+        });
+      }
+
+      if (!vocabularyWord && word) {
+        vocabularyWord = await this.prisma.globalVocabularyWord.findFirst({
+          where: {
+            word: { equals: word, mode: 'insensitive' },
+            ...(language ? {
+              vocabularySet: {
+                language: { equals: language, mode: 'insensitive' },
+              },
+            } : {}),
           },
-          vocabularySet: {
-            language: {
-              equals: language,
-              mode: 'insensitive',
-            },
-          },
-        },
-        select: {
-          id: true,
-          word: true,
-        },
-      });
+          select: { id: true, word: true },
+        });
+      }
 
       if (!vocabularyWord) {
         throw AppError.notFound('Word not found in global vocabulary set for this language');

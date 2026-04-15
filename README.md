@@ -50,15 +50,34 @@ DATABASE_URL="postgresql://user:password@localhost:5432/coachplingo_dev"
 # JWT Auth
 JWT_SECRET="change-this-in-production"
 JWT_EXPIRY="7d"
+JWT_REFRESH_SECRET="change-this-in-production-too"
+JWT_REFRESH_EXPIRY="30d"
 
 # Third-party APIs
-CLAUDE_API_KEY="sk-..."
+OPENROUTER_API_KEY="sk-or-..."
+OPENROUTER_MODEL="anthropic/claude-3.5-sonnet"
 ELEVENLABS_API_KEY="..."
 UPSTASH_QSTASH_TOKEN="..."
-WEBHOOK_BASE_URL="https://your-api-domain.com"
-```
 
-`WEBHOOK_BASE_URL` must be a publicly reachable API origin in production so QStash can call `/jobs/*` handlers.
+# Google OAuth (PassportJS)
+GOOGLE_CLIENT_ID="..."
+GOOGLE_CLIENT_SECRET="..."
+GOOGLE_CALLBACK_URL="http://localhost:3000/auth/google/callback"
+
+# OTP / SMTP
+OTP_SECRET="change-this-in-production"
+OTP_TTL_MINUTES="10"
+SMTP_HOST="smtp.mailtrap.io"
+SMTP_PORT="587"
+SMTP_USER="..."
+SMTP_PASS="..."
+EMAIL_FROM="no-reply@coachplingo.app"
+
+# Cloudinary media storage
+CLOUDINARY_CLOUD_NAME="..."
+CLOUDINARY_API_KEY="..."
+CLOUDINARY_API_SECRET="..."
+```
 
 ---
 
@@ -116,10 +135,23 @@ npm start
 | Endpoint | Method | Description |
 |----------|--------|---|
 | `/auth/signup` | POST | Create account (email/password) |
+| `/auth/register` | POST | Alias for signup |
 | `/auth/login` | POST | Login with email/password |
 | `/auth/oauth` | POST | OAuth login (Google/Apple) |
+| `/auth/google` | GET | Start Google OAuth login |
+| `/auth/google/callback` | GET | Google OAuth callback → app JWT |
+| `/auth/refresh` | POST | Exchange refresh token for new token pair |
+| `/auth/logout` | POST | Stateless logout |
+| `/auth/forgot-password` | POST | Send password reset OTP |
+| `/auth/reset-password` | POST | Reset password via OTP |
+| `/auth/verify-email` | POST | Verify email via OTP |
+| `/auth/verify-email-otp` | POST | Alias for OTP email verification |
+| `/auth/resend-otp` | POST | Resend verification OTP |
 | `/auth/me` | GET | Get current learner profile |
 | `/auth/profile` | PUT | Update profile |
+| `/auth/avatar` | POST | Upload/replace avatar (Cloudinary) |
+| `/auth/change-password` | POST | Change password for authenticated user |
+| `/auth/account` | DELETE | Delete learner account |
 
 ### Learning Paths
 
@@ -214,6 +246,27 @@ npm test:watch
 # Coverage
 npm test:cov
 ```
+
+### Postman E2E (Newman)
+
+```bash
+# Refresh collection from route-aware script
+npm run postman:update
+
+# Run full collection E2E
+npm run test:e2e
+
+# Run targeted folders
+npm run test:e2e:auth
+npm run test:e2e:learning
+npm run test:e2e:jobs
+```
+
+Notes:
+
+- The E2E runner script is `scripts/run-e2e.cjs` and performs a preflight check against the `Health` folder first.
+- Set `E2E_BASE_URL` to target a different backend URL (default: `http://localhost:3000/api`).
+- Default local environment file: `postman/coach_plingo.local.postman_environment.json`.
 
 ---
 

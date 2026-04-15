@@ -45,6 +45,7 @@ model Learner {
   learningPaths            LearningPath[]
   comprehensionResponses   ComprehensionResponse[]
   pronunciationAttempts    PronunciationAttempt[]
+  streak                   LearnerStreak?
 
   @@index([email])
   @@index([oauthProvider, oauthId])
@@ -65,6 +66,7 @@ model LanguageOption {
 model ProfessionOption {
   id        String   @id @default(cuid())
   slug      String   @unique
+  subCategories ProfessionSubcategory[]
   name      String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -72,6 +74,21 @@ model ProfessionOption {
 
   @@index([isActive])
   @@index([name])
+}
+
+model ProfessionSubcategory {
+  id              String   @id @default(cuid())
+  professionId    String
+  profession      ProfessionOption @relation(fields: [professionId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  position        Int
+  createdAt       DateTime @default(now())
+
+  learningPaths             LearningPath[]
+  subcategoryProgressRows   SubcategoryProgress[]
+
+  @@unique([professionId, position])
 }
 
 // ============================================================================
@@ -83,8 +100,10 @@ model LearningPath {
   learnerId       String
   language        String   // Target language being learned
   profession      String   // Profession context
-  status          LearningPathStatus @default(ACTIVE) // active | paused | completed
+  status          LearningPathStatus @default(ACTIVE) // active | paused | completed | archived
   currentMilestone Int      @default(1) // 1, 2, or 3
+  currentSubcategoryId String?
+  subcategoriesCompleted Int @default(0)
   wordsPerLesson  Int      @default(20) // Learner-configured batch size
   startedAt       DateTime @default(now())
   completedAt     DateTime?
@@ -92,18 +111,57 @@ model LearningPath {
   updatedAt       DateTime @updatedAt
 
   learner         Learner  @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  currentSubcategory ProfessionSubcategory? @relation(fields: [currentSubcategoryId], references: [id])
   milestones      Milestone[]
   learnerWordStates LearnerWordState[]
+  subcategoryProgress SubcategoryProgress[]
 
-  @@unique([learnerId, language, profession])
   @@index([learnerId])
   @@index([status])
+  @@index([currentSubcategoryId])
 }
 
 enum LearningPathStatus {
   ACTIVE
   PAUSED
   COMPLETED
+  ARCHIVED
+}
+
+model SubcategoryProgress {
+  id                   String   @id @default(cuid())
+  learningPathId       String
+  subcategoryId        String
+  status               SubcategoryStatus @default(PENDING)
+  wordsCompleted       Int      @default(0)
+  wordsTotal           Int      @default(0)
+  milestonesCompleted  Int      @default(0)
+  unlockedAt           DateTime?
+  completedAt          DateTime?
+
+  learningPath         LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
+  subcategory          ProfessionSubcategory @relation(fields: [subcategoryId], references: [id])
+
+  @@unique([learningPathId, subcategoryId])
+  @@index([learningPathId, status])
+}
+
+enum SubcategoryStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+}
+
+model LearnerStreak {
+  id               String   @id @default(cuid())
+  learnerId        String   @unique
+  currentStreak    Int      @default(0)
+  longestStreak    Int      @default(0)
+  lastActivityDate DateTime? @db.Date
+  streakAtRisk     Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+
+  learner          Learner  @relation(fields: [learnerId], references: [id], onDelete: Cascade)
 }
 
 model Milestone {

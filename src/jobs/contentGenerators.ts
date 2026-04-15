@@ -2,6 +2,7 @@ import { WordData } from '../services/VocabularyService';
 
 export interface GeneratedLessonWord extends WordData {
   translation: string;
+  subcategory: string;
 }
 
 export interface GeneratedStoryQuestion {
@@ -23,6 +24,37 @@ export interface GeneratedPronunciationExercise {
   complexityLevel: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
   position: number;
 }
+
+const lessonTemplatesByLanguage: Record<string, Record<string, Array<{ word: string; translation: string; tags: string[] }>>> = {
+  de: {
+    healthcare: [
+      { word: 'Pflege', translation: 'care', tags: ['patient-care', 'clinical'] },
+      { word: 'Medikament', translation: 'medication', tags: ['treatment', 'pharmacy'] },
+      { word: 'Notfall', translation: 'emergency', tags: ['triage', 'response'] },
+      { word: 'Untersuchung', translation: 'assessment', tags: ['intake', 'clinical'] },
+      { word: 'Patient', translation: 'patient', tags: ['healthcare', 'role'] },
+      { word: 'Vitalwerte', translation: 'vital signs', tags: ['monitoring', 'healthcare'] },
+    ],
+    default: [
+      { word: 'Aufgabe', translation: 'task', tags: ['work', 'planning'] },
+      { word: 'Team', translation: 'team', tags: ['collaboration', 'people'] },
+      { word: 'Ergebnis', translation: 'result', tags: ['outcome', 'analysis'] },
+      { word: 'Priorität', translation: 'priority', tags: ['planning', 'focus'] },
+      { word: 'Besprechung', translation: 'meeting', tags: ['communication', 'work'] },
+      { word: 'Arbeitsplan', translation: 'work plan', tags: ['workflow', 'operations'] },
+    ],
+  },
+  es: {
+    default: [
+      { word: 'objetivo', translation: 'goal', tags: ['planning', 'work'] },
+      { word: 'equipo', translation: 'team', tags: ['collaboration', 'people'] },
+      { word: 'proceso', translation: 'process', tags: ['workflow', 'operations'] },
+      { word: 'resultado', translation: 'result', tags: ['outcome', 'analysis'] },
+      { word: 'prioridad', translation: 'priority', tags: ['planning', 'focus'] },
+      { word: 'mejora', translation: 'improvement', tags: ['growth', 'iteration'] },
+    ],
+  },
+};
 
 const lessonTemplates: Record<string, Array<{ word: string; translation: string; tags: string[] }>> = {
   healthcare: [
@@ -66,18 +98,46 @@ function getProfessionTemplates(profession: string): Array<{ word: string; trans
   return lessonTemplates[normalized] ?? defaultTemplates;
 }
 
-function buildExamples(word: string, profession: string, language: string): {
-  examplePhrases: string[];
-  exampleSentences: string[];
+function getLanguageAwareTemplates(
+  profession: string,
+  language: string,
+): Array<{ word: string; translation: string; tags: string[] }> {
+  const normalizedProfession = profession.trim().toLowerCase();
+  const normalizedLanguage = language.trim().toLowerCase();
+
+  const byLanguage = lessonTemplatesByLanguage[normalizedLanguage];
+  if (byLanguage) {
+    return byLanguage[normalizedProfession] ?? byLanguage.default;
+  }
+
+  return getProfessionTemplates(profession);
+}
+
+import { SentenceExample } from '../services/VocabularyService';
+
+function buildExamples(word: string, translation: string): {
+  examplePhrases: SentenceExample[];
+  exampleSentences: SentenceExample[];
 } {
   return {
     examplePhrases: [
-      `${word} esencial`,
-      `${word} profesional`,
+      {
+        text: `${word} esencial`,
+        translation: `essential ${translation}`,
+        keywords: [
+          { word, translation, pronunciation: `/${word}/` },
+          { word: 'esencial', translation: 'essential', pronunciation: '/e.sen.sial/' }
+        ]
+      }
     ],
     exampleSentences: [
-      `Usamos ${word} cada día en ${profession}.`,
-      `Esta palabra es útil para trabajar en ${profession} usando ${language}.`,
+      {
+        text: `Usamos ${word} cada día.`,
+        translation: `We use ${translation} every day.`,
+        keywords: [
+          { word, translation, pronunciation: `/${word}/` }
+        ]
+      }
     ],
   };
 }
@@ -85,10 +145,11 @@ function buildExamples(word: string, profession: string, language: string): {
 export function generateFallbackLessonWords(input: {
   profession: string;
   language: string;
+  subcategory: string;
   count: number;
   excludeWords?: string[];
 }): GeneratedLessonWord[] {
-  const templates = getProfessionTemplates(input.profession);
+  const templates = getLanguageAwareTemplates(input.profession, input.language);
   const excluded = new Set((input.excludeWords ?? []).map((word) => word.toLowerCase()));
   const results: GeneratedLessonWord[] = [];
   let cursor = 0;
@@ -99,10 +160,11 @@ export function generateFallbackLessonWords(input: {
     const candidateWord = `${template.word}${suffix}`;
 
     if (!excluded.has(candidateWord.toLowerCase())) {
-      const examples = buildExamples(candidateWord, input.profession, input.language);
+      const examples = buildExamples(candidateWord, template.translation);
       results.push({
         word: candidateWord,
         translation: `${template.translation}${suffix}`,
+        subcategory: input.subcategory,
         complexityLevel: results.length < Math.ceil(input.count * 0.7) ? 'BEGINNER' : 'INTERMEDIATE',
         examplePhrases: examples.examplePhrases,
         exampleSentences: examples.exampleSentences,
