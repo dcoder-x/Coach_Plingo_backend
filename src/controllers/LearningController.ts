@@ -100,31 +100,11 @@ export class LearningController {
       where: { slug: result.path.profession },
     });
 
-    const subcategoriesRaw = await this.prisma.professionSubcategory.findMany({
-      where: {
-        professionId: professionOpt?.id || '',
-      },
-      orderBy: { position: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        position: true,
-      },
-    });
+    if (!professionOpt) {
+      throw AppError.notFound('Cannot auto-trigger lesson: profession not found');
+    }
 
-    const totalSubcats = subcategoriesRaw.length;
-    const baseAllocation = totalSubcats > 0 ? Math.floor(500 / totalSubcats) : 0;
-    let remainder = totalSubcats > 0 ? 500 % totalSubcats : 0;
-
-    const subcategories = subcategoriesRaw.map((sub) => {
-      const allocation = baseAllocation + (remainder > 0 ? 1 : 0);
-      if (remainder > 0) remainder--;
-      return {
-        ...sub,
-        wordAllocation: allocation,
-      };
-    });
+    const { subcategories } = await this.learningService.getProfessionSubcategories(professionOpt.id);
 
     const currentSubcategory = result.path.currentSubcategory
       ? subcategories.find((subcategory) => subcategory.id === result.path.currentSubcategory?.id)

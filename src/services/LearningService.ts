@@ -112,24 +112,46 @@ export class LearningService {
   async createLearningPath(
     learnerId: string,
     input: CreateLearningPathInput,
-  ): Promise<{ path: LearningPathResponse; milestones: MilestoneResponse[] }> {
-    // One active path per learner
+  ): Promise<{ path: LearningPathResponse; milestones: MilestoneResponse[]; restored?: boolean }> {
+    // Check for existing path with same language and profession
     const existing = await this.prisma.learningPath.findFirst({
       where: {
         learnerId,
-        status: 'ACTIVE',
+        language: input.language,
+        profession: input.profession,
       },
-      include: { milestones: true },
+      include: { milestones: true, currentSubcategory: true },
     });
 
     if (existing) {
-      throw AppError.conflict(
-        'An active learning path already exists.',
-        {
-          code: 'ACTIVE_PATH_EXISTS',
-          activePathId: existing.id,
-        },
-      );
+      if (existing.status === 'ACTIVE') {
+        throw AppError.conflict(
+          'An active learning path already exists for this language and profession.',
+          {
+            code: 'ACTIVE_PATH_EXISTS',
+            activePathId: existing.id,
+          },
+        );
+      }
+
+      // Auto-restore archived/paused path
+      const restored = await this.prisma.learningPath.update({
+        where: { id: existing.id },
+        data: { status: 'ACTIVE' },
+        include: { currentSubcategory: { select: { id: true, name: true, position: true } } },
+      });
+
+      const subtotal = await this.prisma.subcategoryProgress.count({
+        where: { learningPathId: existing.id },
+      });
+
+      this.logger.info(`Restored existing learning path ${existing.id} for learner ${learnerId}`);
+
+      return {
+        path: this.formatPath(restored as any, subtotal, restored.currentSubcategory as any),
+        milestones: existing.milestones.map((m: any) => this.formatMilestone(m)),
+        restored: true,
+      };
     }
 
     const professionOpt = await this.prisma.professionOption.findUnique({
@@ -143,18 +165,7 @@ export class LearningService {
       orderBy: { position: 'asc' },
     });
 
-    const totalSubcategories = subcategoriesRaw.length;
-    const baseAllocation = totalSubcategories > 0 ? Math.floor(500 / totalSubcategories) : 0;
-    let remainder = totalSubcategories > 0 ? 500 % totalSubcategories : 0;
-
-    const subcategories = subcategoriesRaw.map((sub) => {
-      const allocation = baseAllocation + (remainder > 0 ? 1 : 0);
-      if (remainder > 0) remainder--;
-      return {
-        ...sub,
-        wordAllocation: allocation,
-      };
-    });
+    const subcategories = this.calculateSubcategoryAllocations(subcategoriesRaw);
 
     if (subcategories.length === 0) {
       throw AppError.badRequest('No subcategories configured for this profession and language');
@@ -506,6 +517,68 @@ export class LearningService {
     this.logger.info(`Deleted learning path: ${pathId}`);
   }
 
+  async resetLearningPath(pathId: string, learnerId: string): Promise<{ path: LearningPathResponse; milestones: MilestoneResponse[] }> {
+    const path = await this.prisma.learningPath.findFirst({
+      where: { id: pathId, learnerId },
+    });
+
+    if (!path) {
+      throw AppError.notFound('Learning path not found');
+    }
+
+    let subcategoryId = path.currentSubcategoryId;
+    if (!subcategoryId) {
+      const professionOpt = await this.prisma.professionOption.findUnique({ where: { slug: path.profession } });
+      const firstSub = await this.prisma.professionSubcategory.findFirst({
+        where: { professionId: professionOpt?.id },
+        orderBy: { position: 'asc' },
+      });
+      subcategoryId = firstSub?.id || '';
+    }
+
+    const input: CreateLearningPathInput = {
+      language: path.language,
+      profession: path.profession,
+      subcategoryId,
+      wordsPerLesson: path.wordsPerLesson,
+    };
+
+    await this.deleteLearningPath(pathId);
+    return this.createLearningPath(learnerId, input);
+  }
+
+  async resumeLearningPath(pathId: string, learnerId: string): Promise<LearningPathResponse> {
+    const path = await this.prisma.learningPath.findFirst({
+      where: { id: pathId, learnerId },
+    });
+
+    if (!path) {
+      throw AppError.notFound('Learning path not found');
+    }
+
+    if (path.status === 'COMPLETED') {
+      throw AppError.badRequest('Cannot resume a completed path');
+    }
+
+    if (path.status === 'ACTIVE') {
+      throw AppError.badRequest('Path is already active');
+    }
+
+    const updated = await this.prisma.learningPath.update({
+      where: { id: pathId },
+      data: { status: 'ACTIVE' },
+      include: { currentSubcategory: { select: { id: true, name: true, position: true } } },
+    });
+
+    const subtotal = await this.prisma.subcategoryProgress.count({
+      where: { learningPathId: pathId },
+    });
+
+    this.logger.info(`Resumed learning path ${pathId}`);
+
+    return this.formatPath(updated as any, subtotal, updated.currentSubcategory as any);
+  }
+
   async archiveLearningPath(pathId: string, learnerId: string): Promise<{
     pathId: string;
     status: 'ARCHIVED';
@@ -618,18 +691,7 @@ export class LearningService {
       },
     });
 
-    const totalSubcategories = subcategoriesRaw.length;
-    const baseAllocation = totalSubcategories > 0 ? Math.floor(500 / totalSubcategories) : 0;
-    let remainder = totalSubcategories > 0 ? 500 % totalSubcategories : 0;
-
-    const subcategories = subcategoriesRaw.map((sub) => {
-      const allocation = baseAllocation + (remainder > 0 ? 1 : 0);
-      if (remainder > 0) remainder--;
-      return {
-        ...sub,
-        wordAllocation: allocation,
-      };
-    });
+    const subcategories = this.calculateSubcategoryAllocations(subcategoriesRaw);
 
     return {
       profession: profession.slug,
@@ -710,6 +772,21 @@ export class LearningService {
   // ========================================================================
   // Private helpers
   // ========================================================================
+
+  private calculateSubcategoryAllocations<T>(subcategoriesRaw: T[]): Array<T & { wordAllocation: number }> {
+    const totalSubcategories = subcategoriesRaw.length;
+    const baseAllocation = totalSubcategories > 0 ? Math.floor(500 / totalSubcategories) : 0;
+    let remainder = totalSubcategories > 0 ? 500 % totalSubcategories : 0;
+
+    return subcategoriesRaw.map((sub) => {
+      const allocation = baseAllocation + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder--;
+      return {
+        ...sub,
+        wordAllocation: allocation,
+      };
+    });
+  }
 
   private formatPath(
     path: LearningPathRecord,

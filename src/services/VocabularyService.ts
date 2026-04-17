@@ -305,14 +305,21 @@ export class VocabularyService {
     const states: LearnerWordStateRecord[] = [];
 
     for (const word of words) {
-      const state = await this.prisma.learnerWordState.create({
-        data: {
+      const state = await this.prisma.learnerWordState.upsert({
+        where: {
+          learningPathId_wordId: {
+            learningPathId,
+            wordId: word.id,
+          },
+        },
+        create: {
           learningPathId,
           wordId: word.id,
           status: 'LOCKED',
           masteryScore: 0,
           pronunciationScore: 0,
         },
+        update: {}, // already assigned — preserve existing status and scores
       });
 
       states.push(state);
@@ -322,7 +329,6 @@ export class VocabularyService {
 
     return states;
   }
-
   /**
    * Get active learning window for a learner
    * Returns currently active words (max ACTIVE_WINDOW_SIZE)
@@ -520,8 +526,8 @@ export class VocabularyService {
       include: {
         translations: baseLanguage
           ? {
-              where: { baseLanguage },
-            }
+            where: { baseLanguage },
+          }
           : true,
         audioCache: true,
       },

@@ -42,7 +42,8 @@ export class GenerateLessonHandler {
       if (selectedWords.length < payload.wordsPerLesson) {
         const generatedWords = await this.claudeClient.generateLessonWords({
           profession: payload.profession,
-          language: payload.language,
+          targetLanguage: payload.language,
+          sourceLanguage: payload.baseLanguage,
           currentSubcategory: {
             id: payload.currentSubcategoryId,
             name: payload.currentSubcategoryName,
@@ -74,11 +75,11 @@ export class GenerateLessonHandler {
         const persistedWords = await this.vocabularyService.addWordsToGlobalSet(
           payload.globalSetId,
           validGeneratedWords.map<WordData>((word) => ({
-            word: word.word,
-            complexityLevel: word.complexityLevel,
-            examplePhrases: word.examplePhrases,
-            exampleSentences: word.exampleSentences,
-            tags: Array.from(new Set([...(word.tags || []), subcategoryTag])),
+            word: word.word || 'Unknown Word',
+            complexityLevel: word.complexityLevel || 'BEGINNER',
+            examplePhrases: Array.isArray(word.examplePhrases) ? word.examplePhrases : [],
+            exampleSentences: Array.isArray(word.exampleSentences) ? word.exampleSentences : [],
+            tags: Array.from(new Set([...(Array.isArray(word.tags) ? word.tags : []), subcategoryTag])),
           })),
         );
 
