@@ -14,6 +14,17 @@ const notificationIdSchema = z.object({
   id: z.string().min(1, 'Invalid notification ID'),
 });
 
+const pushTokenSchema = z.object({
+  pushToken: z.string().min(1, 'Push token required'),
+});
+
+const preferencesSchema = z.object({
+  inApp: z.boolean().optional(),
+  email: z.boolean().optional(),
+}).refine((d) => d.inApp !== undefined || d.email !== undefined, {
+  message: 'At least one preference field (inApp or email) must be provided',
+});
+
 /**
  * GET /notifications
  * Get all notifications with pagination
@@ -74,6 +85,48 @@ router.delete(
   authenticateToken,
   validate({ params: notificationIdSchema }),
   (req, res, next) => controller.deleteNotification(req, res, next),
+);
+
+/**
+ * POST /notifications/push-token
+ * Register or update the learner's Expo push token
+ */
+router.post(
+  '/push-token',
+  authenticateToken,
+  validate({ body: pushTokenSchema }),
+  (req, res, next) => controller.registerPushToken(req, res, next),
+);
+
+/**
+ * DELETE /notifications/push-token
+ * Remove the learner's push token (on logout)
+ */
+router.delete(
+  '/push-token',
+  authenticateToken,
+  (req, res, next) => controller.removePushToken(req, res, next),
+);
+
+/**
+ * GET /notifications/preferences
+ * Get the learner's notification preferences (inApp, email)
+ */
+router.get(
+  '/preferences',
+  authenticateToken,
+  (req, res, next) => controller.getPreferences(req, res, next),
+);
+
+/**
+ * PUT /notifications/preferences
+ * Update the learner's notification preferences
+ */
+router.put(
+  '/preferences',
+  authenticateToken,
+  validate({ body: preferencesSchema }),
+  (req, res, next) => controller.updatePreferences(req, res, next),
 );
 
 export default router;

@@ -8,7 +8,8 @@ export type JobType =
   | 'GENERATE_STORY'
   | 'GENERATE_EXERCISES'
   | 'GENERATE_AUDIO'
-  | 'SCORE_PRONUNCIATION';
+  | 'SCORE_PRONUNCIATION'
+  | 'GENERATE_SCENARIO_LESSON';
 
 export type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
@@ -33,6 +34,11 @@ export interface GenerateLessonJobPayload {
   learnerId: string;
   language: string;
   profession: string;
+  wordsPerLesson: number;
+  globalSetId: string;
+  milestoneId: string;
+  baseLanguage: string;
+  excludeWords: string[];
   currentSubcategoryId: string;
   currentSubcategoryName: string;
   currentSubcategoryDescription?: string;
@@ -43,11 +49,6 @@ export interface GenerateLessonJobPayload {
     wordAllocation: number;
     position: number;
   }>;
-  wordsPerLesson: number;
-  globalSetId: string;
-  milestoneId: string;
-  baseLanguage: string;
-  excludeWords: string[];
 }
 
 export interface GenerateStoryJobPayload {
@@ -59,12 +60,14 @@ export interface GenerateStoryJobPayload {
   }>;
   profession: string;
   language: string;
+  baseLanguage: string;
 }
 
 export interface GenerateExercisesJobPayload {
   learnerId: string;
   milestoneId: string;
   language: string;
+  baseLanguage: string;
   profession: string;
   vocabulary: string[];
 }

@@ -144,4 +144,70 @@ export class NotificationController {
       next(error);
     }
   }
+
+  /**
+   * POST /notifications/push-token
+   * Register Expo push token for the authenticated learner
+   */
+  async registerPushToken(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.learnerId) throw AppError.unauthorized('Not authenticated');
+
+      const { pushToken } = req.body as { pushToken: string };
+      await this.notificationService.registerPushToken(req.learnerId, pushToken);
+
+      res.json({ success: true, data: { message: 'Push token registered' } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * DELETE /notifications/push-token
+   * Remove push token (e.g. on logout)
+   */
+  async removePushToken(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.learnerId) throw AppError.unauthorized('Not authenticated');
+
+      await this.notificationService.removePushToken(req.learnerId);
+
+      res.json({ success: true, data: { message: 'Push token removed' } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /notifications/preferences
+   * Get the learner's notification preferences
+   */
+  async getPreferences(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.learnerId) throw AppError.unauthorized('Not authenticated');
+
+      const prefs = await this.notificationService.getPreferences(req.learnerId);
+
+      res.json({ success: true, data: prefs });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PUT /notifications/preferences
+   * Update the learner's notification preferences
+   */
+  async updatePreferences(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.learnerId) throw AppError.unauthorized('Not authenticated');
+
+      const { inApp, email } = req.body as { inApp?: boolean; email?: boolean };
+      const prefs = await this.notificationService.updatePreferences(req.learnerId, { inApp, email });
+
+      res.json({ success: true, data: prefs });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

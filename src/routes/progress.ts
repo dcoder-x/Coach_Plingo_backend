@@ -43,6 +43,17 @@ router.get(
 );
 
 /**
+ * GET /progress/leaderboard/:pathId
+ * Get path leaderboard ordered by XP, confidence, then earliest achiever
+ */
+router.get(
+  '/leaderboard/:pathId',
+  authenticateToken,
+  validate({ params: pathIdSchema }),
+  (req, res, next) => controller.getPathLeaderboard(req, res, next),
+);
+
+/**
  * GET /progress/mastery-breakdown/:pathId
  * Get mastery breakdown
  */

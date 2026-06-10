@@ -23,7 +23,6 @@ interface GlobalVocabularyWordRecord {
   setId: string;
   word: string;
   complexityLevel: DifficultyBand;
-  examplePhrases?: unknown;
   exampleSentences?: unknown;
   tags?: unknown;
   createdAt: Date;
@@ -33,7 +32,7 @@ interface GlobalVocabularyWordRecord {
 interface LearnerWordStateRecord {
   id: string;
   learningPathId: string;
-  wordId: string;
+  wordId: string | null;
   status: WordStatus;
   masteryScore: DecimalLike;
   pronunciationScore: DecimalLike;
@@ -54,7 +53,6 @@ export interface SentenceExample {
 export interface WordData {
   word: string;
   complexityLevel: DifficultyBand;
-  examplePhrases: SentenceExample[];
   exampleSentences: SentenceExample[];
   tags: string[];
 }
@@ -75,6 +73,16 @@ export interface GlobalSetStats {
     INTERMEDIATE: number;
     ADVANCED: number;
   };
+}
+
+export interface HighFrequencyWordItem {
+  id: string;
+  token: string;
+  lemma: string | null;
+  partOfSpeech: string | null;
+  frequencyRank: number | null;
+  translation: string | null;
+  translationSource: 'PREGENERATED_DB' | 'DEVICE_NATIVE_FALLBACK_REQUIRED';
 }
 
 export class VocabularyService {
@@ -159,7 +167,6 @@ export class VocabularyService {
           setId,
           word: wordData.word,
           complexityLevel: wordData.complexityLevel,
-          examplePhrases: wordData.examplePhrases as any,
           exampleSentences: wordData.exampleSentences as any,
           tags: wordData.tags,
         },
@@ -202,7 +209,11 @@ export class VocabularyService {
         where: { learningPathId },
         select: { wordId: true },
       })
-      .then((states: Array<{ wordId: string }>) => states.map((s) => s.wordId));
+      .then((states) =>
+        states
+          .map((s) => s.wordId)
+          .filter((wordId): wordId is string => typeof wordId === 'string'),
+      );
 
     // Get unused words from global set
     const unused = await this.prisma.globalVocabularyWord.findMany({
@@ -238,7 +249,11 @@ export class VocabularyService {
         where: { learningPathId },
         select: { wordId: true },
       })
-      .then((states: Array<{ wordId: string }>) => states.map((s) => s.wordId));
+      .then((states) =>
+        states
+          .map((s) => s.wordId)
+          .filter((wordId): wordId is string => typeof wordId === 'string'),
+      );
 
     const filteredWords: GlobalVocabularyWordRecord[] = [];
     let skip = 0;
@@ -292,6 +307,41 @@ export class VocabularyService {
       : [];
 
     return Array.from(new Set([...base, ...incomingTags]));
+  }
+
+  async getHighFrequencyWords(input: {
+    targetLanguage: string;
+    baseLanguage: string;
+    limit: number;
+  }): Promise<HighFrequencyWordItem[]> {
+    const normalizedTargetLanguage = input.targetLanguage.toLowerCase();
+    const normalizedBaseLanguage = input.baseLanguage.toLowerCase();
+
+    const rows = await this.prisma.commonWordGloss.findMany({
+      where: {
+        language: normalizedTargetLanguage,
+      },
+      orderBy: [
+        { frequencyRank: 'asc' },
+        { token: 'asc' },
+      ],
+      take: input.limit,
+    });
+
+    return rows.map((row) => {
+      const hasPregeneratedPair = normalizedBaseLanguage === 'en' && !!row.baseLanguageGloss;
+      return {
+        id: row.id,
+        token: row.token,
+        lemma: row.lemma,
+        partOfSpeech: row.partOfSpeech,
+        frequencyRank: row.frequencyRank,
+        translation: hasPregeneratedPair ? row.baseLanguageGloss : null,
+        translationSource: hasPregeneratedPair
+          ? 'PREGENERATED_DB'
+          : 'DEVICE_NATIVE_FALLBACK_REQUIRED',
+      };
+    });
   }
 
   /**
@@ -355,7 +405,14 @@ export class VocabularyService {
       take: this.ACTIVE_WINDOW_SIZE,
     });
 
-    return activeWords.map((state) => ({
+    const validActiveWords = activeWords.filter(
+      (state): state is (typeof activeWords)[number] & {
+        word: NonNullable<(typeof activeWords)[number]['word']>;
+        wordId: string;
+      } => state.word !== null && state.wordId !== null,
+    );
+
+    return validActiveWords.map((state) => ({
       wordId: state.wordId,
       word: state.word.word,
       status: state.status,

@@ -17,23 +17,23 @@ const lessonPayloadSchema = z.object({
   learnerId: z.string().min(1),
   language: z.string().min(1),
   profession: z.string().min(1),
-  currentSubcategoryId: z.string().min(1),
-  currentSubcategoryName: z.string().min(1),
-  currentSubcategoryDescription: z.string().optional(),
-  subcategories: z.array(
-    z.object({
-      id: z.string().min(1),
-      name: z.string().min(1),
-      description: z.string().optional(),
-      wordAllocation: z.number().int().min(1),
-      position: z.number().int().min(1),
-    }),
-  ).min(1),
   wordsPerLesson: z.number().int().min(1).max(100),
   globalSetId: z.string().min(1),
   milestoneId: z.string().min(1),
   baseLanguage: z.string().min(1),
   excludeWords: z.array(z.string()).default([]),
+  currentSubcategoryId: z.string().min(1),
+  currentSubcategoryName: z.string().min(1),
+  currentSubcategoryDescription: z.string().min(1).optional(),
+  subcategories: z.array(
+    z.object({
+      id: z.string().min(1),
+      name: z.string().min(1),
+      description: z.string().min(1).optional(),
+      wordAllocation: z.number().int().min(1),
+      position: z.number().int().min(1),
+    }),
+  ).min(1),
 });
 
 const storyPayloadSchema = z.object({
@@ -47,12 +47,14 @@ const storyPayloadSchema = z.object({
   ),
   profession: z.string().min(1),
   language: z.string().min(1),
+  baseLanguage: z.string().min(1),
 });
 
 const exercisesPayloadSchema = z.object({
   learnerId: z.string().min(1),
   milestoneId: z.string().min(1),
   language: z.string().min(1),
+  baseLanguage: z.string().min(1),
   profession: z.string().min(1),
   vocabulary: z.array(z.string().min(1)).min(1),
 });
@@ -75,12 +77,15 @@ const exercisesJobSchema = z.object({
 router.post(
   '/generate-lesson',
   validate({ body: lessonJobSchema }),
-  async (req, res, next): Promise<void> => {
+  async (req, res): Promise<void> => {
     try {
       const result = await lessonHandler.handle(req.body.jobId, req.body.payload);
       res.json({ success: true, data: result });
     } catch (error) {
-      next(error);
+      res.status(200).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Lesson job failed',
+      });
     }
   },
 );
@@ -88,12 +93,15 @@ router.post(
 router.post(
   '/generate-story',
   validate({ body: storyJobSchema }),
-  async (req, res, next): Promise<void> => {
+  async (req, res): Promise<void> => {
     try {
       const result = await storyHandler.handle(req.body.jobId, req.body.payload);
       res.json({ success: true, data: result });
     } catch (error) {
-      next(error);
+      res.status(200).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Story job failed',
+      });
     }
   },
 );
@@ -101,12 +109,15 @@ router.post(
 router.post(
   '/generate-exercises',
   validate({ body: exercisesJobSchema }),
-  async (req, res, next): Promise<void> => {
+  async (req, res): Promise<void> => {
     try {
       const result = await exercisesHandler.handle(req.body.jobId, req.body.payload);
       res.json({ success: true, data: result });
     } catch (error) {
-      next(error);
+      res.status(200).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Exercises job failed',
+      });
     }
   },
 );

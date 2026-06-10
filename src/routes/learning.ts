@@ -1,22 +1,38 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { LearningController } from '../controllers/LearningController';
+import { PronunciationController } from '../controllers/PronunciationController';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validate';
+import { uploadAudio } from '../middleware/upload';
 import { createLearningPathSchema, updateLearningPathSchema } from '../services/LearningService';
+import { completeScenarioSessionSchema } from '../services/LessonSessionService';
 import { z } from 'zod';
 
 const router = Router();
 const prisma = new PrismaClient();
 const controller = new LearningController(prisma);
+const pronunciationController = new PronunciationController(prisma);
 
 // Param validators
 const pathIdSchema = z.object({
   id: z.string().min(1, 'Invalid path ID'),
 });
 
-const learningPathsQuerySchema = z.object({
-  status: z.enum(['ACTIVE', 'PAUSED', 'COMPLETED', 'ARCHIVED']).optional(),
+const pathLessonParamsSchema = z.object({
+  id: z.string().min(1, 'Invalid path ID'),
+  lessonId: z.string().min(1, 'Invalid lesson ID'),
+});
+
+const pathLessonWordParamsSchema = z.object({
+  pathId: z.string().min(1, 'Invalid path ID'),
+  lessonId: z.string().min(1, 'Invalid lesson ID'),
+  wordId: z.string().min(1, 'Invalid word ID'),
+});
+
+const pronunciationScoreBodySchema = z.object({
+  recordedAudioUrl: z.string().url('recordedAudioUrl must be a valid URL').optional(),
+  languageCode: z.string().min(2, 'languageCode is required'),
 });
 
 /**
@@ -37,7 +53,6 @@ router.post(
 router.get(
   '/paths',
   authenticateToken,
-  validate({ query: learningPathsQuerySchema }),
   (req, res, next) => controller.getPaths(req, res, next),
 );
 
@@ -64,6 +79,28 @@ router.patch(
 );
 
 /**
+ * PATCH /learning/paths/:id/resume
+ * Resume an archived learning path
+ */
+router.patch(
+  '/paths/:id/resume',
+  authenticateToken,
+  validate({ params: pathIdSchema }),
+  (req, res, next) => controller.resumePath(req, res, next),
+);
+
+/**
+ * POST /learning/paths/:id/reset
+ * Reset archived path progress and create a fresh active path
+ */
+router.post(
+  '/paths/:id/reset',
+  authenticateToken,
+  validate({ params: pathIdSchema }),
+  (req, res, next) => controller.resetPath(req, res, next),
+);
+
+/**
  * GET /learning/paths/:id/subcategories
  * Get path-level subcategory progress
  */
@@ -86,69 +123,60 @@ router.put(
 );
 
 /**
- * GET /learning/paths/:id/milestones
- * Get all milestones for path
+ * GET /learning/paths/:id/current-scenario-session
+ * Get v3 scenario session payload
  */
 router.get(
-  '/paths/:id/milestones',
+  '/paths/:id/current-scenario-session',
   authenticateToken,
   validate({ params: pathIdSchema }),
-  (req, res, next) => controller.getMilestones(req, res, next),
+  (req, res, next) => controller.getCurrentScenarioSession(req, res, next),
 );
 
 /**
- * GET /learning/paths/:id/milestone/active
- * Get active milestone
- */
-router.get(
-  '/paths/:id/milestone/active',
-  authenticateToken,
-  validate({ params: pathIdSchema }),
-  (req, res, next) => controller.getActiveMilestone(req, res, next),
-);
-
-/**
- * GET /learning/paths/:id/readiness
- * Check if first lesson content is ready after path creation
- */
-router.get(
-  '/paths/:id/readiness',
-  authenticateToken,
-  validate({ params: pathIdSchema }),
-  (req, res, next) => controller.getPathReadiness(req, res, next),
-);
-
-/**
- * GET /learning/paths/:id/current-session
- * Get current orchestrated lesson session payload
- */
-router.get(
-  '/paths/:id/current-session',
-  authenticateToken,
-  validate({ params: pathIdSchema }),
-  (req, res, next) => controller.getCurrentSession(req, res, next),
-);
-
-/**
- * POST /learning/paths/:id/current-session/complete
- * Submit a full lesson session completion payload
+ * POST /learning/paths/:id/current-scenario-session/complete
+ * Submit v3 scenario session completion payload
  */
 router.post(
-  '/paths/:id/current-session/complete',
+  '/paths/:id/current-scenario-session/complete',
   authenticateToken,
-  validate({ params: pathIdSchema }),
-  (req, res, next) => controller.completeCurrentSession(req, res, next),
+  validate({ params: pathIdSchema, body: completeScenarioSessionSchema }),
+  (req, res, next) => controller.completeCurrentScenarioSession(req, res, next),
 );
 
 /**
- * POST /learning/paths/:id/milestone/advance
- * Advance to next milestone
+ * GET /learning/paths/:id/lessons
+ * Get V3 scenario lesson map for a path
  */
-router.post(
-  '/paths/:id/milestone/advance',
+router.get(
+  '/paths/:id/lessons',
   authenticateToken,
   validate({ params: pathIdSchema }),
-  (req, res, next) => controller.advanceMilestone(req, res, next),
+  (req, res, next) => controller.getLessons(req, res, next),
+);
+
+/**
+ * POST /learning/paths/:id/lessons/:lessonId/retake
+ * Start retake flow for a completed V3 scenario lesson
+ */
+router.post(
+  '/paths/:id/lessons/:lessonId/retake',
+  authenticateToken,
+  validate({ params: pathLessonParamsSchema }),
+  (req, res, next) => controller.retakeLesson(req, res, next),
+);
+
+/**
+ * POST /learning/paths/:pathId/lessons/:lessonId/words/:wordId/pronunciation/score
+ * Score pronunciation for a scenario word using ElevenLabs STT plus LLM grading.
+ * Accepts raw audio file (multipart/form-data) or pre-uploaded URL (legacy).
+ */
+router.post(
+  '/paths/:pathId/lessons/:lessonId/words/:wordId/pronunciation/score',
+  authenticateToken,
+  uploadAudio.single('audio'),
+  validate({ params: pathLessonWordParamsSchema, body: pronunciationScoreBodySchema }),
+  (req, res, next) => pronunciationController.scoreAttempt(req, res, next),
 );
 
 /**
@@ -160,6 +188,20 @@ router.delete(
   authenticateToken,
   validate({ params: pathIdSchema }),
   (req, res, next) => controller.deletePath(req, res, next),
+);
+
+router.get(
+  '/paths/:id/vocabulary',
+  authenticateToken,
+  validate({ params: pathIdSchema }),
+  (req, res, next) => controller.getPathVocabulary(req, res, next),
+);
+
+router.get(
+  '/paths/:id/progress',
+  authenticateToken,
+  validate({ params: pathIdSchema }),
+  (req, res, next) => controller.getPathProgress(req, res, next),
 );
 
 export default router;

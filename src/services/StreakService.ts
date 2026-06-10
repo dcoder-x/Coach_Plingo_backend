@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { BadgeService } from './BadgeService';
 
 export interface LearnerStreakResponse {
   currentStreak: number;
@@ -8,7 +9,11 @@ export interface LearnerStreakResponse {
 }
 
 export class StreakService {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly badgeService: BadgeService;
+
+  constructor(private readonly prisma: PrismaClient) {
+    this.badgeService = new BadgeService(prisma);
+  }
 
   async updateStreak(learnerId: string, completionDate: Date): Promise<void> {
     const learner = await this.prisma.learner.findUnique({
@@ -33,6 +38,10 @@ export class StreakService {
           streakAtRisk: false,
         },
       });
+      // First day counts as streak 1 — check badges
+      this.badgeService
+        .checkAndAwardBadges({ type: 'STREAK_UPDATED', learnerId, currentStreak: 1 })
+        .catch(() => undefined);
       return;
     }
 
@@ -57,9 +66,13 @@ export class StreakService {
           streakAtRisk: false,
         },
       });
+      this.badgeService
+        .checkAndAwardBadges({ type: 'STREAK_UPDATED', learnerId, currentStreak: nextStreak })
+        .catch(() => undefined);
       return;
     }
 
+    // Streak broken — reset to 1
     await this.prisma.learnerStreak.update({
       where: { learnerId },
       data: {
@@ -94,6 +107,27 @@ export class StreakService {
     const lastActivityDate = streak.lastActivityDate
       ? this.toLocalDateString(streak.lastActivityDate, timezone)
       : null;
+
+    const today = this.toLocalDateString(new Date(), timezone);
+    const yesterday = this.subtractDays(today, 1);
+
+    // If the learner missed at least one full day, the streak is reset.
+    if (lastActivityDate && streak.currentStreak > 0 && lastActivityDate !== today && lastActivityDate !== yesterday) {
+      await this.prisma.learnerStreak.update({
+        where: { learnerId },
+        data: {
+          currentStreak: 0,
+          streakAtRisk: false,
+        },
+      });
+
+      return {
+        currentStreak: 0,
+        longestStreak: streak.longestStreak,
+        lastActivityDate,
+        streakAtRisk: false,
+      };
+    }
 
     return {
       currentStreak: streak.currentStreak,

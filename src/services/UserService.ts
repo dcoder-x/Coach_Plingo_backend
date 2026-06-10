@@ -1021,7 +1021,7 @@ export class UserService {
     }
 
     try {
-      const payload = jwt.verify(refreshToken, refreshTokenSecret) as JwtPayload;
+      const payload = jwt.verify(refreshToken, refreshTokenSecret) as JwtPayload & { tokenType?: string };
 
       if (payload.tokenType !== 'refresh') {
         throw AppError.unauthorized('Invalid refresh token');
