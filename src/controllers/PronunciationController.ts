@@ -793,8 +793,8 @@ export class PronunciationController {
     }
 
     return value
-      .filter((entry): entry is { text?: unknown } => typeof entry === 'object' && entry !== null)
-      .map((entry) => (typeof entry.text === 'string' ? entry.text.trim() : ''))
+      .filter((entry): entry is Prisma.JsonObject => typeof entry === 'object' && entry !== null && !Array.isArray(entry))
+      .map((entry) => (typeof entry['text'] === 'string' ? (entry['text'] as string).trim() : ''))
       .filter((entry) => entry.length > 0);
   }
 
@@ -804,12 +804,10 @@ export class PronunciationController {
     }
 
     return value
-      .filter((entry): entry is { template?: unknown; answer?: unknown } => {
-        return typeof entry === 'object' && entry !== null;
-      })
+      .filter((entry): entry is Prisma.JsonObject => typeof entry === 'object' && entry !== null && !Array.isArray(entry))
       .map((entry) => {
-        const template = typeof entry.template === 'string' ? entry.template : '';
-        const answer = typeof entry.answer === 'string' ? entry.answer : fallbackWord;
+        const template = typeof entry['template'] === 'string' ? (entry['template'] as string) : '';
+        const answer = typeof entry['answer'] === 'string' ? (entry['answer'] as string) : fallbackWord;
         if (!template) {
           return '';
         }
