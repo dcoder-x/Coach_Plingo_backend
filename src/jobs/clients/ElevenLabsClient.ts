@@ -1,9 +1,40 @@
 import axios from 'axios';
+import FormData from 'form-data';
+import { PrismaClient } from '@prisma/client';
 import { SimpleLogger } from '../../utils/Logger';
+
+interface ElevenLabsSttWord {
+  text: string;
+  type?: string;
+  logprob?: number;
+}
+
+export interface ElevenLabsTranscriptionResult {
+  text: string;
+  languageCode: string | null;
+  words: ElevenLabsSttWord[];
+}
+
+export interface ElevenLabsSpeechOptions {
+  singleWordMode?: boolean;
+  // Override the instance-level voice ID for this call (e.g. language-specific voice from DB).
+  voiceId?: string;
+  // IPA transcription for the text. When provided, wraps the text in a <phoneme> SSML tag so
+  // ElevenLabs pronounces loanwords with target-language phonetics rather than English defaults.
+  ipa?: string;
+}
+
+type ElevenLabsVoiceSettings = {
+  stability?: number;
+  similarity_boost?: number;
+  style?: number;
+  use_speaker_boost?: boolean;
+};
 
 export class ElevenLabsClient {
   private readonly apiKey?: string;
   private readonly voiceId: string;
+  private readonly modelId: string;
   private readonly logger: SimpleLogger;
   private static disabledReason: string | null = null;
   private static rateLimitedUntil = 0;
@@ -12,13 +43,25 @@ export class ElevenLabsClient {
   private static waitQueue: Array<() => void> = [];
   private static lastRateLimitLogAt = 0;
 
+  // Looks up the language-specific ElevenLabs voice ID seeded in LanguageOption.
+  // Returns undefined when the row has no ttsVoiceId, letting call sites fall back to
+  // the instance default (ELEVENLABS_VOICE_ID env var).
+  static async resolveVoiceId(prisma: PrismaClient, languageCode: string): Promise<string | undefined> {
+    const lang = await prisma.languageOption.findUnique({
+      where: { code: languageCode },
+      select: { ttsVoiceId: true },
+    });
+    return lang?.ttsVoiceId ?? undefined;
+  }
+
   constructor() {
     this.apiKey = process.env.ELEVENLABS_API_KEY;
     this.voiceId = process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL';
+    this.modelId = process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2';
     this.logger = new SimpleLogger('ElevenLabsClient');
   }
 
-  async generateSpeech(text: string): Promise<string> {
+  async generateSpeech(text: string, languageCode?: string, options?: ElevenLabsSpeechOptions): Promise<string> {
     if (!this.hasConfiguredKey()) {
       return '';
     }
@@ -38,12 +81,27 @@ export class ElevenLabsClient {
         return '';
       }
 
+      const effectiveVoiceId = options?.voiceId ?? this.voiceId;
+      const speechText = this.buildSpeechText(text, options?.ipa);
+
+      const body: Record<string, unknown> = {
+        text: speechText,
+        model_id: this.modelId,
+      };
+      if (languageCode) {
+        body.language_code = languageCode;
+      }
+
+      if (options?.singleWordMode) {
+        const voiceSettings = this.getSingleWordVoiceSettings();
+        if (voiceSettings) {
+          body.voice_settings = voiceSettings;
+        }
+      }
+
       const response = await axios.post<ArrayBuffer>(
-        `https://api.elevenlabs.io/v1/text-to-speech/${this.voiceId}`,
-        {
-          text,
-          model_id: 'eleven_flash_v2_5',
-        },
+        `https://api.elevenlabs.io/v1/text-to-speech/${effectiveVoiceId}`,
+        body,
         {
           headers: {
             'xi-api-key': this.apiKey,
@@ -89,6 +147,77 @@ export class ElevenLabsClient {
     } finally {
       releaseSlot();
     }
+  }
+
+  async transcribeFromUrl(
+    audioUrl: string,
+    languageCode?: string,
+  ): Promise<ElevenLabsTranscriptionResult | null> {
+    if (!this.hasConfiguredKey()) {
+      return null;
+    }
+
+    if (!audioUrl || !/^https?:\/\//i.test(audioUrl)) {
+      this.logger.warn('ElevenLabs STT skipped due to invalid audio URL');
+      return null;
+    }
+
+    try {
+      const form = new FormData();
+      form.append('model_id', 'scribe_v2');
+      form.append('source_url', audioUrl);
+      if (languageCode) {
+        form.append('language_code', languageCode);
+      }
+
+      const response = await axios.post(
+        'https://api.elevenlabs.io/v1/speech-to-text',
+        form,
+        {
+          headers: {
+            'xi-api-key': this.apiKey,
+            ...form.getHeaders(),
+          },
+          timeout: 30_000,
+        },
+      );
+
+      const data = response.data as {
+        text?: string;
+        language_code?: string;
+        words?: Array<{ text?: string; type?: string; logprob?: number }>;
+      };
+
+      return {
+        text: String(data.text || '').trim(),
+        languageCode: data.language_code || null,
+        words: Array.isArray(data.words)
+          ? data.words
+            .filter((word) => typeof word?.text === 'string')
+            .map((word) => ({
+              text: String(word.text),
+              type: word.type,
+              logprob: typeof word.logprob === 'number' ? word.logprob : undefined,
+            }))
+          : [],
+      };
+    } catch (error) {
+      const details = this.extractErrorDetails(error);
+      this.logger.warn(
+        `ElevenLabs STT request failed. status=${details.status || 'unknown'} message=${details.message || 'unknown'}`,
+      );
+      return null;
+    }
+  }
+
+  // When IPA is available, wrap the text in a <phoneme> SSML tag so ElevenLabs uses the
+  // exact target-language phonetics instead of guessing from the ASCII spelling.
+  private buildSpeechText(text: string, ipa?: string): string {
+    const input = String(text || '').trim();
+    if (!input || !ipa?.trim()) {
+      return input;
+    }
+    return `<phoneme alphabet="ipa" ph="${ipa.trim()}">${input}</phoneme>`;
   }
 
   private async acquireSlot(): Promise<() => void> {
@@ -164,5 +293,50 @@ export class ElevenLabsClient {
 
   private hasConfiguredKey(): boolean {
     return Boolean(this.apiKey && !this.apiKey.startsWith('YOUR_') && this.apiKey !== 'YOUR_ELEVENLABS_API_KEY');
+  }
+
+  private getSingleWordVoiceSettings(): ElevenLabsVoiceSettings | null {
+    const stability = this.parseOptionalNumber(process.env.ELEVENLABS_WORD_STABILITY, 0, 1);
+    const similarityBoost = this.parseOptionalNumber(process.env.ELEVENLABS_WORD_SIMILARITY_BOOST, 0, 1);
+    const style = this.parseOptionalNumber(process.env.ELEVENLABS_WORD_STYLE, 0, 1);
+    const useSpeakerBoost = this.parseOptionalBoolean(process.env.ELEVENLABS_WORD_USE_SPEAKER_BOOST);
+
+    const settings: ElevenLabsVoiceSettings = {
+      ...(stability !== undefined ? { stability } : {}),
+      ...(similarityBoost !== undefined ? { similarity_boost: similarityBoost } : {}),
+      ...(style !== undefined ? { style } : {}),
+      ...(useSpeakerBoost !== undefined ? { use_speaker_boost: useSpeakerBoost } : {}),
+    };
+
+    return Object.keys(settings).length > 0 ? settings : null;
+  }
+
+  private parseOptionalNumber(raw: string | undefined, min: number, max: number): number | undefined {
+    if (raw === undefined || raw.trim() === '') {
+      return undefined;
+    }
+
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) {
+      return undefined;
+    }
+
+    return Math.min(max, Math.max(min, parsed));
+  }
+
+  private parseOptionalBoolean(raw: string | undefined): boolean | undefined {
+    if (raw === undefined || raw.trim() === '') {
+      return undefined;
+    }
+
+    const normalized = raw.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on') {
+      return true;
+    }
+    if (normalized === 'false' || normalized === '0' || normalized === 'no' || normalized === 'off') {
+      return false;
+    }
+
+    return undefined;
   }
 }

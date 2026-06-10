@@ -129,6 +129,49 @@ export class VocabularyController {
     }
   }
 
+  /**
+   * GET /vocabulary/high-frequency/:pathId
+   * Get top high-frequency words for the path language.
+   */
+  async getHighFrequencyWords(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { pathId } = req.params;
+      const limit = Number(req.query.limit || 10);
+      const requesterLearnerId = this.getRequesterLearnerId(req);
+
+      const path = await this.prisma.learningPath.findUnique({
+        where: { id: pathId },
+        include: { learner: true },
+      });
+
+      if (!path) {
+        throw AppError.notFound('Learning path not found');
+      }
+
+      if (path.learnerId !== requesterLearnerId) {
+        throw AppError.forbidden('Not authorized');
+      }
+
+      const words = await this.vocabularyService.getHighFrequencyWords({
+        targetLanguage: path.language,
+        baseLanguage: path.learner.baseLanguage,
+        limit,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          language: path.language,
+          baseLanguage: path.learner.baseLanguage,
+          limit,
+          words,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   private getRequesterLearnerId(req: Request): string {
     const learnerIdFromRequest = req.learnerId;
     const learnerIdFromJwt = (req.user as { learnerId?: string } | undefined)?.learnerId;

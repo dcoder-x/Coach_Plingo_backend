@@ -22,7 +22,8 @@ export class GenerateStoryHandler {
 
     try {
       const story = await this.claudeClient.generateStory({
-        language: payload.language,
+        targetLanguage: payload.language,
+        sourceLanguage: payload.baseLanguage,
         profession: payload.profession,
         vocabulary: payload.vocabulary,
       });

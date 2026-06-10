@@ -141,3 +141,10 @@ vite.config.ts.timestamp-*
 doc
 postman/
 .postman/
+
+# Local scratch/debug utilities
+scripts/tmp_*.js
+scripts/debug_*.js
+
+# Generated lesson review exports at repo root
+LESSON_REVIEW_*.md

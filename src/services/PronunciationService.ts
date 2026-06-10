@@ -16,7 +16,8 @@ interface VocabularyAudioCacheRecord {
 
 interface PronunciationAttemptRecord {
   id: string;
-  exerciseId: string;
+  exerciseId: string | null;
+  wordId: string | null;
   learnerId: string;
   recordedAudioUrl: string;
   accuracyScore: DecimalLike;
@@ -26,10 +27,11 @@ interface PronunciationAttemptRecord {
 }
 
 export interface PronunciationAttemptInput {
-  exerciseId: string;
+  exerciseId?: string | null;
+  wordId?: string | null;
   learnerId: string;
   recordedAudioUrl: string;
-  accuracyScore: number; // From ElevenLabs (0-100, converted to 0-10 scale)
+  accuracyScore: number; // 0-100 continuous score
 }
 
 export interface AudioCacheData {
@@ -97,21 +99,37 @@ export class PronunciationService {
    * Called after learner records and submits their pronunciation
    */
   async recordAttempt(input: PronunciationAttemptInput): Promise<PronunciationAttemptRecord> {
-    const exercise = await this.prisma.pronunciationExercise.findUnique({
-      where: { id: input.exerciseId },
-    });
-
-    if (!exercise) {
-      throw AppError.notFound('Pronunciation exercise not found');
+    if (!input.exerciseId && !input.wordId) {
+      throw AppError.badRequest('Either exerciseId or wordId is required');
     }
 
-    // Convert ElevenLabs score (0-100) to 0-10 scale
-    const accuracyScore = Math.round((input.accuracyScore / 100) * 10 * 100) / 100;
-    const passed = accuracyScore >= 7.0; // 70% accuracy = pass
+    if (input.exerciseId) {
+      const exercise = await this.prisma.pronunciationExercise.findUnique({
+        where: { id: input.exerciseId },
+      });
+
+      if (!exercise) {
+        throw AppError.notFound('Pronunciation exercise not found');
+      }
+    }
+
+    if (input.wordId) {
+      const word = await this.prisma.scenarioWord.findUnique({
+        where: { id: input.wordId },
+      });
+
+      if (!word) {
+        throw AppError.notFound('Scenario word not found');
+      }
+    }
+
+    const accuracyScore = Math.max(0, Math.min(100, Math.round(input.accuracyScore * 100) / 100));
+    const passed = accuracyScore >= 70;
 
     const attempt = await this.prisma.pronunciationAttempt.create({
       data: {
-        exerciseId: input.exerciseId,
+        exerciseId: input.exerciseId ?? null,
+        wordId: input.wordId ?? null,
         learnerId: input.learnerId,
         recordedAudioUrl: input.recordedAudioUrl,
         accuracyScore,
@@ -120,7 +138,7 @@ export class PronunciationService {
     });
 
     this.logger.info(
-      `Recorded pronunciation attempt - exercise: ${input.exerciseId}, accuracy: ${accuracyScore}/10 (passed: ${passed})`,
+      `Recorded pronunciation attempt - exercise: ${input.exerciseId || 'n/a'}, word: ${input.wordId || 'n/a'}, accuracy: ${accuracyScore}/100 (passed: ${passed})`,
     );
 
     return attempt;

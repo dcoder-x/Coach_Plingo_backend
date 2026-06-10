@@ -41,23 +41,28 @@ model Learner {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  pushToken       String?  // Expo push notification token
+
   // Relations
   learningPaths            LearningPath[]
   comprehensionResponses   ComprehensionResponse[]
   pronunciationAttempts    PronunciationAttempt[]
   streak                   LearnerStreak?
+  badges                   LearnerBadge[]
+  notifications            Notification[]
 
   @@index([email])
   @@index([oauthProvider, oauthId])
 }
 
 model LanguageOption {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  name      String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  code       String   @unique
+  name       String
+  ttsVoiceId String?  // ElevenLabs voice ID for native-accent TTS; null falls back to ELEVENLABS_VOICE_ID env var
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([isActive])
   @@index([name])
@@ -67,7 +72,10 @@ model ProfessionOption {
   id        String   @id @default(cuid())
   slug      String   @unique
   subCategories ProfessionSubcategory[]
+  scenarios ProfessionScenario[]
+  learningPaths LearningPath[] @relation("PathProfession")
   name      String
+  description String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -80,6 +88,7 @@ model ProfessionSubcategory {
   id              String   @id @default(cuid())
   professionId    String
   profession      ProfessionOption @relation(fields: [professionId], references: [id], onDelete: Cascade)
+  slug            String?
   name            String
   description     String?
   position        Int
@@ -87,8 +96,27 @@ model ProfessionSubcategory {
 
   learningPaths             LearningPath[]
   subcategoryProgressRows   SubcategoryProgress[]
+  scenarioLessons           ScenarioLesson[]
 
   @@unique([professionId, position])
+  @@index([professionId, slug])
+}
+
+model ProfessionScenario {
+  id            String   @id @default(cuid())
+  professionId  String
+  profession    ProfessionOption @relation(fields: [professionId], references: [id], onDelete: Cascade)
+  slug          String
+  displayName   String
+  description   String?
+  position      Int
+  createdAt     DateTime @default(now())
+
+  scenarioLessons ScenarioLesson[]
+  currentLearningPaths LearningPath[] @relation("CurrentScenarioPath")
+
+  @@unique([professionId, position])
+  @@unique([professionId, slug])
 }
 
 // ============================================================================
@@ -100,25 +128,149 @@ model LearningPath {
   learnerId       String
   language        String   // Target language being learned
   profession      String   // Profession context
+  professionId    String?
   status          LearningPathStatus @default(ACTIVE) // active | paused | completed | archived
   currentMilestone Int      @default(1) // 1, 2, or 3
   currentSubcategoryId String?
+  currentScenarioId String?
   subcategoriesCompleted Int @default(0)
+  scenariosCompleted Int @default(0)
   wordsPerLesson  Int      @default(20) // Learner-configured batch size
+  pathXp          Int      @default(0)  // Cumulative XP: sum of passRates from first-pass lesson completions
   startedAt       DateTime @default(now())
   completedAt     DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   learner         Learner  @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  professionRef   ProfessionOption? @relation("PathProfession", fields: [professionId], references: [id])
   currentSubcategory ProfessionSubcategory? @relation(fields: [currentSubcategoryId], references: [id])
+  currentScenario ProfessionScenario? @relation("CurrentScenarioPath", fields: [currentScenarioId], references: [id])
   milestones      Milestone[]
   learnerWordStates LearnerWordState[]
   subcategoryProgress SubcategoryProgress[]
+  scenarioProgress LearnerScenarioProgress[]
 
   @@index([learnerId])
   @@index([status])
   @@index([currentSubcategoryId])
+  @@index([professionId])
+  @@index([currentScenarioId])
+}
+
+enum LessonStatus {
+  DRAFT
+  REVIEWED
+  PUBLISHED
+}
+
+enum ScenarioProgressStatus {
+  LOCKED
+  ACTIVE
+  COMPLETED
+}
+
+model ScenarioLesson {
+  id               String   @id @default(cuid())
+  subcategoryId    String
+  subcategory      ProfessionSubcategory @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  scenarioId       String
+  scenario         ProfessionScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  language         String
+  scenarioPosition Int
+  status           LessonStatus @default(DRAFT)
+  generatedAt      DateTime?
+  reviewedAt       DateTime?
+  publishedAt      DateTime?
+  createdAt        DateTime @default(now())
+
+  words            ScenarioWord[]
+  comprehensions   ScenarioComprehension[]
+  learnerProgress  LearnerScenarioProgress[]
+
+  @@unique([subcategoryId, scenarioId, language])
+  @@index([subcategoryId, language, status])
+  @@index([subcategoryId, language, scenarioPosition])
+}
+
+model ScenarioWord {
+  id                String   @id @default(cuid())
+  lessonId          String
+  lesson            ScenarioLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  word              String
+  ipa               String?
+  complexityLevel   DifficultyBand
+  examplePhrases    Json?
+  exampleSentences  Json?
+  tags              Json?
+  position          Int
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  translations      WordTranslation[]
+  audioCache        WordAudioCache[]
+  learnerWordStates LearnerWordState[]
+  pronunciationAttempts PronunciationAttempt[]
+
+  @@unique([lessonId, position])
+  @@index([lessonId])
+  @@index([word])
+}
+
+model WordAudioCache {
+  id              String   @id @default(cuid())
+  wordId          String
+  word            ScenarioWord @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  language        String
+  audioUrl        String
+  generatedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([wordId, language])
+  @@index([wordId])
+}
+
+model ScenarioComprehension {
+  id          String   @id @default(cuid())
+  lessonId    String
+  lesson      ScenarioLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  content     String
+  contentTranslation String?
+  audioUrl    String?
+  tokenGlosses Json?    // Array of {token: string, start: number, end: number, lemma?: string, baseLanguageGloss: string, source: string}
+  position    Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  questions   ComprehensionQuestion[]
+
+  @@index([lessonId])
+  @@index([position])
+}
+
+model LearnerScenarioProgress {
+  id                  String   @id @default(cuid())
+  learningPathId      String
+  learningPath        LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
+  lessonId            String
+  lesson              ScenarioLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  status              ScenarioProgressStatus @default(LOCKED)
+  wordsCompleted      Int      @default(0)
+  comprehensionPassed Boolean  @default(false)
+  comprehensionScore  Decimal? @db.Decimal(4, 2)
+  timesCompleted      Int      @default(0)
+  bestCompScore       Decimal? @db.Decimal(4, 2)
+  wordMasteryLevel    Decimal  @default(0.00) @db.Decimal(5, 2) // 0-100, % of lesson words with mastered = true
+  lessonMastered      Boolean  @default(false)                   // true when wordMasteryLevel >= 70
+  startedAt           DateTime?
+  completedAt         DateTime?
+  lastCompletedAt     DateTime?
+  unlockedAt          DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([learningPathId, lessonId])
+  @@index([learningPathId, status])
 }
 
 enum LearningPathStatus {
@@ -246,16 +398,20 @@ model GlobalVocabularyWord {
 
 model WordTranslation {
   id              String   @id @default(cuid())
-  wordId          String
+  wordId          String?
+  scenarioWordId  String?
   baseLanguage    String   // Learner's native language
   translation     String
   generatedAt     DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  word            GlobalVocabularyWord @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  word            GlobalVocabularyWord? @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  scenarioWord    ScenarioWord? @relation(fields: [scenarioWordId], references: [id], onDelete: Cascade)
 
   @@unique([wordId, baseLanguage])
+  @@unique([scenarioWordId, baseLanguage])
   @@index([wordId])
+  @@index([scenarioWordId])
   @@index([baseLanguage])
 }
 
@@ -273,6 +429,23 @@ model VocabularyAudioCache {
   @@index([wordId])
 }
 
+model CommonWordGloss {
+  id                  String   @id @default(cuid())
+  language            String   // Target language
+  token               String   // High-frequency word: "the", "and", "en", "y"
+  lemma               String?  // Canonical form
+  baseLanguageGloss   String   // Brief translation in learner's native language (optional, usually English)
+  partOfSpeech        String?  // Optional: noun, verb, pronoun, article, conjunction, preposition
+  frequencyRank       Int?     // 1-100 ranking; 1 = most common. Used for quality filtering
+  source              String   @default("common_lexicon") // "common_lexicon" | "lesson_vocab"
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([language, token])
+  @@index([language])
+  @@index([frequencyRank])
+}
+
 // ============================================================================
 // 3.4 Active Learning Window
 // ============================================================================
@@ -280,11 +453,15 @@ model VocabularyAudioCache {
 model LearnerWordState {
   id                String   @id @default(cuid())
   learningPathId    String
-  wordId            String
+  wordId            String?
+  scenarioWordId    String?
   status            WordStatus @default(LOCKED)
   masteryScore      Decimal  @default(0.00) @db.Decimal(4, 2) // 0.00-10.00, threshold 8.0
   meaningSeen       Boolean  @default(false)
   usageCompleted    Boolean  @default(false)
+  fillGapCompleted  Boolean  @default(false)
+  pronunciationPassed Boolean @default(false)
+  mastered          Boolean  @default(false)
   pronunciationScore Decimal  @default(0.00) @db.Decimal(4, 2)
   attemptCount      Int      @default(0)
   lastAttemptedAt   DateTime?
@@ -292,11 +469,14 @@ model LearnerWordState {
   updatedAt         DateTime @updatedAt
 
   learningPath      LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
-  word              GlobalVocabularyWord @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  word              GlobalVocabularyWord? @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  scenarioWord      ScenarioWord? @relation(fields: [scenarioWordId], references: [id], onDelete: Cascade)
 
   @@unique([learningPathId, wordId])
+  @@unique([learningPathId, scenarioWordId])
   @@index([learningPathId])
   @@index([wordId])
+  @@index([scenarioWordId])
   @@index([status])
   @@index([masteryScore])
 }
@@ -334,19 +514,24 @@ enum StoryStatus {
 
 model ComprehensionQuestion {
   id              String   @id @default(cuid())
-  storyId         String
+  storyId         String?
+  comprehensionId String?
   questionText    String
+  questionTranslation String?
   options         Json?    // Array of MCQ options (null for short-answer)
+  optionsTranslation Json?  // Array of translations for MCQ options
   correctAnswer   String
   questionType    QuestionType
   position        Int      // Display order
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  story           Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  story           Story? @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  comprehension   ScenarioComprehension? @relation(fields: [comprehensionId], references: [id], onDelete: Cascade)
   responses       ComprehensionResponse[]
 
   @@index([storyId])
+  @@index([comprehensionId])
   @@index([position])
 }
 
@@ -394,18 +579,21 @@ model PronunciationExercise {
 
 model PronunciationAttempt {
   id                String   @id @default(cuid())
-  exerciseId        String
+  exerciseId        String?
+  wordId            String?
   learnerId         String
   recordedAudioUrl  String   // S3 object store URL
-  accuracyScore     Decimal  @default(0.00) @db.Decimal(4, 2) // ElevenLabs phoneme comparison
+  accuracyScore     Decimal  @default(0.00) @db.Decimal(5, 2) // 0-100 continuous score
   passed            Boolean  @default(false)
   attemptedAt       DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  exercise          PronunciationExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  exercise          PronunciationExercise? @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  word              ScenarioWord? @relation(fields: [wordId], references: [id], onDelete: Cascade)
   learner           Learner @relation(fields: [learnerId], references: [id], onDelete: Cascade)
 
   @@index([exerciseId])
+  @@index([wordId])
   @@index([learnerId])
 }
 
@@ -424,6 +612,8 @@ model Notification {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  learner         Learner  @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+
   @@index([learnerId])
   @@index([read])
 }
@@ -434,7 +624,27 @@ enum NotificationType {
   LESSON_AVAILABLE
   DAILY_REMINDER
   ACHIEVEMENT
+  BADGE_EARNED
+  STREAK_MILESTONE
+  PATH_COMPLETED
   ERROR
+}
+
+// ============================================================================
+// Badges / Achievements
+// ============================================================================
+
+model LearnerBadge {
+  id         String   @id @default(cuid())
+  learnerId  String
+  badgeKey   String   // References a key in the BADGE_CATALOG constant
+  earnedAt   DateTime @default(now())
+
+  learner    Learner  @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+
+  @@unique([learnerId, badgeKey])
+  @@index([learnerId])
+  @@index([earnedAt])
 }
 
 // ============================================================================
@@ -465,6 +675,7 @@ enum JobType {
   GENERATE_LESSON
   GENERATE_STORY
   GENERATE_EXERCISES
+  GENERATE_SCENARIO_LESSON
   GENERATE_AUDIO
   SCORE_PRONUNCIATION
 }

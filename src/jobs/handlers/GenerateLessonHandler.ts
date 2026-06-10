@@ -28,12 +28,10 @@ export class GenerateLessonHandler {
     await this.aiService.markProcessing(jobId);
 
     try {
-      const subcategoryTag = this.vocabularyService.getSubcategoryTag(payload.currentSubcategoryId);
-      const unusedWords = await this.vocabularyService.getUnusedWordsForSubcategoryFromGlobalSet(
+      const unusedWords = await this.vocabularyService.getUnusedWordsFromGlobalSet(
         payload.globalSetId,
         payload.learningPathId,
         payload.wordsPerLesson,
-        payload.currentSubcategoryId,
         payload.excludeWords,
       );
 
@@ -42,7 +40,8 @@ export class GenerateLessonHandler {
       if (selectedWords.length < payload.wordsPerLesson) {
         const generatedWords = await this.claudeClient.generateLessonWords({
           profession: payload.profession,
-          language: payload.language,
+          targetLanguage: payload.language,
+          sourceLanguage: payload.baseLanguage,
           currentSubcategory: {
             id: payload.currentSubcategoryId,
             name: payload.currentSubcategoryName,
@@ -53,37 +52,18 @@ export class GenerateLessonHandler {
           excludeWords: [...payload.excludeWords, ...selectedWords.map((word) => word.word)],
         });
 
-        const normalizedNameToId = new Map(
-          payload.subcategories.map((subcategory) => [subcategory.name.trim().toLowerCase(), subcategory.id]),
-        );
-
-        const validGeneratedWords = generatedWords
-          .map((word) => {
-            const resolvedSubcategoryId = normalizedNameToId.get(word.subcategory.trim().toLowerCase());
-            if (!resolvedSubcategoryId || resolvedSubcategoryId !== payload.currentSubcategoryId) {
-              return null;
-            }
-
-            return {
-              ...word,
-              resolvedSubcategoryId,
-            };
-          })
-          .filter((word): word is NonNullable<typeof word> => word !== null);
-
         const persistedWords = await this.vocabularyService.addWordsToGlobalSet(
           payload.globalSetId,
-          validGeneratedWords.map<WordData>((word) => ({
+          generatedWords.map<WordData>((word) => ({
             word: word.word,
             complexityLevel: word.complexityLevel,
-            examplePhrases: word.examplePhrases,
             exampleSentences: word.exampleSentences,
-            tags: Array.from(new Set([...(word.tags || []), subcategoryTag])),
+            tags: word.tags,
           })),
         );
 
         for (const persistedWord of persistedWords) {
-          const generated = validGeneratedWords.find(
+          const generated = generatedWords.find(
             (word) => word.word.toLowerCase() === persistedWord.word.toLowerCase(),
           );
 
@@ -96,9 +76,7 @@ export class GenerateLessonHandler {
           }
         }
 
-        selectedWords.push(
-          ...persistedWords.filter((word) => this.vocabularyService.wordHasSubcategory(word.tags, payload.currentSubcategoryId)),
-        );
+        selectedWords.push(...persistedWords);
       }
 
       const wordsForLesson = selectedWords.slice(0, payload.wordsPerLesson);

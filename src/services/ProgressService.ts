@@ -5,13 +5,14 @@ import { SimpleLogger } from '../utils/Logger';
 import { MasterySignals } from '../types';
 import { LearningService } from './LearningService';
 import { VocabularyService } from './VocabularyService';
+import { BadgeService } from './BadgeService';
 
 type DecimalLike = number | { toString(): string };
 
 interface LearnerWordStateRecord {
   id: string;
   learningPathId: string;
-  wordId: string;
+  wordId: string | null;
   status: 'ACTIVE' | 'LOCKED' | 'MASTERED';
   masteryScore: DecimalLike;
   meaningSeen: boolean;
@@ -38,7 +39,24 @@ export interface ProgressStats {
   activeWords: number;
   masteredWords: number;
   averageMasteryScore: number;
+  pathXp: number;
   estimatedCompletion: string; // ISO date
+}
+
+export interface PathLeaderboardEntry {
+  rank: number;
+  learnerId: string;
+  learnerName: string;
+  learningPathId: string;
+  xp: number;
+  confidence: number;
+  startedAt: string;
+  isCurrentLearner: boolean;
+}
+
+export interface PathLeaderboard {
+  entries: PathLeaderboardEntry[];
+  myRank: number | null;
 }
 
 export class ProgressService {
@@ -46,6 +64,7 @@ export class ProgressService {
   private logger: SimpleLogger;
   private learningService: LearningService;
   private vocabularyService: VocabularyService;
+  private badgeService: BadgeService;
 
   // Mastery calculation weights
   private readonly WEIGHTS = {
@@ -62,6 +81,7 @@ export class ProgressService {
     this.logger = new SimpleLogger('ProgressService');
     this.learningService = new LearningService(prisma);
     this.vocabularyService = new VocabularyService(prisma);
+    this.badgeService = new BadgeService(prisma);
   }
 
   /**
@@ -116,8 +136,10 @@ export class ProgressService {
     if (becameMastered) {
       // Find the subcategory ID from the tags
       let subcategoryId: string | null = null;
-      if (Array.isArray(wordState.word.tags)) {
-        const subcatTag = wordState.word.tags.find((tag: any) => typeof tag === 'string' && tag.startsWith('subcategory:'));
+      if (wordState.word && Array.isArray(wordState.word.tags)) {
+        const subcatTag = wordState.word.tags.find(
+          (tag: unknown) => typeof tag === 'string' && tag.startsWith('subcategory:'),
+        );
         if (subcatTag) {
           subcategoryId = (subcatTag as string).split(':')[1] || null;
         }
@@ -139,6 +161,13 @@ export class ProgressService {
            this.logger.error(`Failed to increment subcategory progress: ${err.message}`);
         });
       }
+    }
+
+    // Badge + XP checks on first mastery
+    if (becameMastered) {
+      await this.handleWordMasteredBadges(input.learningPathId, Number(updated.masteryScore)).catch(
+        (err: Error) => this.logger.error(`Badge check failed: ${err.message}`),
+      );
     }
 
     // If word just crossed mastery threshold, check whether milestone 1 sprint is complete
@@ -253,18 +282,21 @@ export class ProgressService {
    * Get progress stats for a learning path
    */
   async getProgressStats(learningPathId: string): Promise<ProgressStats> {
-    const stats = await this.prisma.learnerWordState.aggregate({
-      where: { learningPathId },
-      _count: true,
-      _avg: { masteryScore: true },
-    });
-
-    const [active, mastered] = await Promise.all([
+    const [stats, active, mastered, path] = await Promise.all([
+      this.prisma.learnerWordState.aggregate({
+        where: { learningPathId },
+        _count: true,
+        _avg: { masteryScore: true },
+      }),
       this.prisma.learnerWordState.count({
         where: { learningPathId, status: 'ACTIVE' },
       }),
       this.prisma.learnerWordState.count({
         where: { learningPathId, status: 'MASTERED' },
+      }),
+      this.prisma.learningPath.findUnique({
+        where: { id: learningPathId },
+        select: { pathXp: true },
       }),
     ]);
 
@@ -288,7 +320,109 @@ export class ProgressService {
       activeWords: active,
       masteredWords: mastered,
       averageMasteryScore,
+      pathXp: path?.pathXp ?? 0,
       estimatedCompletion: estimatedCompletion.toISOString(),
+    };
+  }
+
+  async getPathLeaderboard(pathId: string, learnerId: string, limit = 25): Promise<PathLeaderboard> {
+    const referencePath = await this.prisma.learningPath.findUnique({
+      where: { id: pathId },
+      select: {
+        id: true,
+        language: true,
+        profession: true,
+      },
+    });
+
+    if (!referencePath) {
+      throw AppError.notFound('Learning path not found');
+    }
+
+    const cohortPaths = await this.prisma.learningPath.findMany({
+      where: {
+        language: referencePath.language,
+        profession: referencePath.profession,
+        status: { in: ['ACTIVE', 'PAUSED', 'COMPLETED'] },
+      },
+      select: {
+        id: true,
+        learnerId: true,
+        pathXp: true,
+        startedAt: true,
+        createdAt: true,
+        learner: {
+          select: {
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    if (cohortPaths.length === 0) {
+      return { entries: [], myRank: null };
+    }
+
+    const masteryRows = await this.prisma.learnerWordState.groupBy({
+      by: ['learningPathId'],
+      where: {
+        learningPathId: {
+          in: cohortPaths.map((p) => p.id),
+        },
+      },
+      _avg: {
+        masteryScore: true,
+      },
+    });
+
+    const confidenceByPathId = new Map<string, number>();
+    masteryRows.forEach((row) => {
+      const mastery = row._avg.masteryScore ? Number(row._avg.masteryScore) : 0;
+      confidenceByPathId.set(row.learningPathId, Math.round(mastery * 10));
+    });
+
+    const sorted = [...cohortPaths].sort((a, b) => {
+      if (b.pathXp !== a.pathXp) {
+        return b.pathXp - a.pathXp;
+      }
+
+      const confidenceA = confidenceByPathId.get(a.id) ?? 0;
+      const confidenceB = confidenceByPathId.get(b.id) ?? 0;
+      if (confidenceB !== confidenceA) {
+        return confidenceB - confidenceA;
+      }
+
+      const aTime = a.startedAt.getTime();
+      const bTime = b.startedAt.getTime();
+      if (aTime !== bTime) {
+        return aTime - bTime;
+      }
+
+      const aCreated = a.createdAt.getTime();
+      const bCreated = b.createdAt.getTime();
+      if (aCreated !== bCreated) {
+        return aCreated - bCreated;
+      }
+
+      return a.id.localeCompare(b.id);
+    });
+
+    const ranked: PathLeaderboardEntry[] = sorted.map((row, index) => ({
+      rank: index + 1,
+      learnerId: row.learnerId,
+      learnerName: row.learner.fullName,
+      learningPathId: row.id,
+      xp: row.pathXp,
+      confidence: confidenceByPathId.get(row.id) ?? 0,
+      startedAt: row.startedAt.toISOString(),
+      isCurrentLearner: row.learnerId === learnerId,
+    }));
+
+    const myRank = ranked.find((row) => row.isCurrentLearner)?.rank ?? null;
+
+    return {
+      entries: ranked.slice(0, Math.max(1, limit)),
+      myRank,
     };
   }
 
@@ -433,6 +567,37 @@ export class ProgressService {
     this.logger.info(`Reset progress for word ${wordId}`);
 
     return reset;
+  }
+
+  /**
+   * Fetch learnerId + total mastered count for a path, then trigger badge checks.
+   */
+  private async handleWordMasteredBadges(learningPathId: string, masteryScore: number): Promise<void> {
+    const [path, totalMastered] = await Promise.all([
+      this.prisma.learningPath.findUnique({
+        where: { id: learningPathId },
+        select: { learnerId: true, pathXp: true },
+      }),
+      this.prisma.learnerWordState.count({
+        where: { learningPathId, status: 'MASTERED' },
+      }),
+    ]);
+
+    if (!path) return;
+
+    await this.badgeService.checkAndAwardBadges({
+      type: 'WORD_MASTERED',
+      learnerId: path.learnerId,
+      totalMastered,
+      masteryScore,
+    });
+
+    // Also trigger XP badge check with current path XP
+    await this.badgeService.checkAndAwardBadges({
+      type: 'XP_EARNED',
+      learnerId: path.learnerId,
+      totalXp: path.pathXp,
+    });
   }
 
   /**

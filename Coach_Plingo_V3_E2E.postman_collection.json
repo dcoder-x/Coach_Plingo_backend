@@ -1,0 +1,976 @@
+{
+  "info": {
+    "_postman_id": "coach-plingo-v3-e2e",
+    "name": "Coach Plingo V3 Backend E2E",
+    "description": "Detailed end-to-end collection for V3-only backend flow: catalog discovery, auth, learning path lifecycle, scenario session completion, retake, and cleanup.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 - Preflight",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/health",
+            "description": "Checks backend availability before executing authenticated E2E flow."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Health endpoint is reachable', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Health payload has status ok', function () {",
+                  "  pm.expect(json.status).to.equal('ok');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 - Catalog Bootstrap",
+      "item": [
+        {
+          "name": "List Professions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/catalog/professions",
+            "description": "Gets profession catalog and stores a profession id + slug for path creation."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Professions loaded', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const professions = json?.data?.professions || [];",
+                  "pm.test('At least one profession exists', function () {",
+                  "  pm.expect(professions.length).to.be.above(0);",
+                  "});",
+                  "",
+                  "const first = professions[0] || {};",
+                  "const professionId = first.id || '';",
+                  "const professionSlug = first.slug || first.profession || first.name || '';",
+                  "",
+                  "if (professionId) pm.collectionVariables.set('profession_id', professionId);",
+                  "if (professionSlug) pm.collectionVariables.set('profession_slug', professionSlug);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get Profession Subcategories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/catalog/professions/{{profession_id}}/subcategories",
+            "description": "Fetches subcategories and stores the first subcategory id for path creation."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Subcategories loaded', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const subcategories = json?.data?.subcategories || [];",
+                  "pm.test('At least one subcategory exists', function () {",
+                  "  pm.expect(subcategories.length).to.be.above(0);",
+                  "});",
+                  "",
+                  "const first = subcategories[0] || {};",
+                  "if (first.id) pm.collectionVariables.set('subcategory_id', first.id);",
+                  "const professionSlugFromSubcategoryCall = json?.data?.profession;",
+                  "if (professionSlugFromSubcategoryCall) pm.collectionVariables.set('profession_slug', professionSlugFromSubcategoryCall);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "List Languages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/catalog/languages",
+            "description": "Ensures language catalog endpoint is healthy. Uses existing {{language}} variable for path creation by default."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Languages loaded', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const languages = json?.data?.languages || [];",
+                  "pm.test('At least one language exists', function () {",
+                  "  pm.expect(languages.length).to.be.above(0);",
+                  "});",
+                  "",
+                  "const selected = pm.collectionVariables.get('language') || pm.environment.get('language') || '';",
+                  "if (selected) pm.collectionVariables.set('target_language', selected);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 - Auth",
+      "item": [
+        {
+          "name": "Sign Up Random Learner",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const stamp = Date.now();",
+                  "const email = `e2e.v3.${stamp}@coachplingo.test`;",
+                  "const password = `SecurePass${stamp % 100000}A1`;",
+                  "pm.collectionVariables.set('e2e_email', email);",
+                  "pm.collectionVariables.set('e2e_password', password);",
+                  "pm.collectionVariables.set('e2e_full_name', 'E2E V3 Learner');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Signup succeeded', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const data = json?.data || {};",
+                  "const learner = data?.learner || {};",
+                  "const token = data?.token || {};",
+                  "if (learner?.id) pm.collectionVariables.set('learner_id', learner.id);",
+                  "if (token?.accessToken) pm.collectionVariables.set('access_token', token.accessToken);",
+                  "if (token?.refreshToken) pm.collectionVariables.set('refresh_token', token.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{e2e_email}}\",\n  \"password\": \"{{e2e_password}}\",\n  \"fullName\": \"{{e2e_full_name}}\"\n}"
+            },
+            "url": "{{base_url}}/auth/signup"
+          },
+          "response": []
+        },
+        {
+          "name": "Login Learner",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{e2e_email}}\",\n  \"password\": \"{{e2e_password}}\"\n}"
+            },
+            "url": "{{base_url}}/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login succeeded', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const data = json?.data || {};",
+                  "const learner = data?.learner || {};",
+                  "const token = data?.token || {};",
+                  "pm.test('Access token returned', function () {",
+                  "  pm.expect(token?.accessToken).to.be.a('string').and.not.empty;",
+                  "});",
+                  "if (learner?.id) pm.collectionVariables.set('learner_id', learner.id);",
+                  "if (token?.accessToken) pm.collectionVariables.set('access_token', token.accessToken);",
+                  "if (token?.refreshToken) pm.collectionVariables.set('refresh_token', token.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get Auth Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/auth/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Auth profile fetched', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const id = json?.data?.learner?.id || json?.data?.id;",
+                  "if (id) pm.collectionVariables.set('learner_id', id);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 - Learning Path Core",
+      "item": [
+        {
+          "name": "Create Learning Path (V3)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"language\": \"{{target_language}}\",\n  \"profession\": \"{{profession_slug}}\",\n  \"subcategoryId\": \"{{subcategory_id}}\",\n  \"wordsPerLesson\": 10\n}"
+            },
+            "url": "{{base_url}}/learning/paths",
+            "description": "Creates a V3 path and stores path id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Path create/restore succeeds', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const pathId = json?.data?.path?.id || json?.data?.id;",
+                  "pm.test('learning_path_id is present', function () {",
+                  "  pm.expect(pathId).to.be.a('string').and.not.empty;",
+                  "});",
+                  "if (pathId) pm.collectionVariables.set('learning_path_id', pathId);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "List Learning Paths",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/learning/paths"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Paths list fetched', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const paths = json?.data?.paths || [];",
+                  "pm.test('Paths list is array', function () {",
+                  "  pm.expect(paths).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get Learning Path",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/learning/paths/{{learning_path_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Path fetched', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get Path Subcategories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/learning/paths/{{learning_path_id}}/subcategories"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Path subcategories fetched', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get Lessons Map (Initial)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/learning/paths/{{learning_path_id}}/lessons"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lessons map fetched', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const subcategories = json?.data?.subcategories || [];",
+                  "let firstLessonId = '';",
+                  "for (const sub of subcategories) {",
+                  "  const lessons = sub?.lessons || [];",
+                  "  if (lessons.length > 0 && lessons[0]?.lessonId) {",
+                  "    firstLessonId = lessons[0].lessonId;",
+                  "    break;",
+                  "  }",
+                  "}",
+                  "if (firstLessonId) pm.collectionVariables.set('lesson_id', firstLessonId);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 - Scenario Session",
+      "item": [
+        {
+          "name": "Get Current Scenario Session",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/learning/paths/{{learning_path_id}}/current-scenario-session",
+            "description": "Retrieves active scenario session. If content is still preparing, the collection auto-retries this request up to 5 times when using the runner/newman."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Scenario session endpoint responded', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const data = json?.data || {};",
+                  "",
+                  "if (data?.ready === false) {",
+                  "  const current = Number(pm.collectionVariables.get('session_retry_count') || 0) + 1;",
+                  "  pm.collectionVariables.set('session_retry_count', String(current));",
+                  "  if (current <= 5) {",
+                  "    postman.setNextRequest('Get Current Scenario Session');",
+                  "    return;",
+                  "  }",
+                  "  pm.test('Session became ready within retry limit', function () {",
+                  "    pm.expect.fail('Scenario session still PREPARING after 5 retries');",
+                  "  });",
+                  "  return;",
+                  "}",
+                  "",
+                  "pm.collectionVariables.set('session_retry_count', '0');",
+                  "const lessonId = data?.lessonId || data?.lesson_id || '';",
+                  "const words = data?.words || [];",
+                  "const comprehensionBlocks = data?.comprehension || [];",
+                  "const wordResults = words.map((w) => ({",
+                  "  wordId: w.id,",
+                  "  pronunciationScore: 95,",
+                  "  fillGapCorrect: true,",
+                  "  attemptCount: 1",
+                  "}));",
+                  "",
+                  "const comprehensionResponses = [];",
+                  "for (const block of comprehensionBlocks) {",
+                  "  for (const q of (block?.questions || [])) {",
+                  "    let response = 'sample answer';",
+                  "    if (q?.questionType === 'multiple_choice' && Array.isArray(q?.options) && q.options.length > 0) {",
+                  "      response = String(q.options[0]);",
+                  "    }",
+                  "    comprehensionResponses.push({",
+                  "      questionId: q.questionId,",
+                  "      response",
+                  "    });",
+                  "  }",
+                  "}",
+                  "",
+                  "pm.test('Session has lesson id', function () {",
+                  "  pm.expect(lessonId).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.test('Session has at least one word', function () {",
+                  "  pm.expect(wordResults.length).to.be.above(0);",
+                  "});",
+                  "",
+                  "if (lessonId) pm.collectionVariables.set('lesson_id', lessonId);",
+                  "pm.collectionVariables.set('completion_payload', JSON.stringify({",
+                  "  lessonType: 'SCENARIO',",
+                  "  lessonId,",
+                  "  wordResults,",
+                  "  comprehensionResponses",
+                  "}, null, 2));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Complete Current Scenario Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{completion_payload}}"
+            },
+            "url": "{{base_url}}/learning/paths/{{learning_path_id}}/current-scenario-session/complete",
+            "description": "Submits payload generated from live session data in the previous request."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Scenario completion accepted', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const data = json?.data || {};",
+                  "if (data?.lessonId) pm.collectionVariables.set('completed_lesson_id', data.lessonId);",
+                  "if (typeof data?.pathCompleted !== 'undefined') {",
+                  "  pm.collectionVariables.set('path_completed', String(data.pathCompleted));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get Lessons Map (After Completion)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/learning/paths/{{learning_path_id}}/lessons"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lessons map fetched after completion', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const subcategories = json?.data?.subcategories || [];",
+                  "let completedLesson = '';",
+                  "for (const sub of subcategories) {",
+                  "  for (const lesson of (sub?.lessons || [])) {",
+                  "    if (lesson?.status === 'COMPLETED' && lesson?.lessonId) {",
+                  "      completedLesson = lesson.lessonId;",
+                  "      break;",
+                  "    }",
+                  "  }",
+                  "  if (completedLesson) break;",
+                  "}",
+                  "if (completedLesson) pm.collectionVariables.set('completed_lesson_id', completedLesson);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Retake Completed Lesson",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/learning/paths/{{learning_path_id}}/lessons/{{completed_lesson_id}}/retake"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Retake endpoint responded', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get Path Progress",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/learning/paths/{{learning_path_id}}/progress"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Path progress fetched', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get Path Vocabulary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/learning/paths/{{learning_path_id}}/vocabulary"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Path vocabulary fetched', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06 - Path State & Cleanup",
+      "item": [
+        {
+          "name": "Archive Path",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/learning/paths/{{learning_path_id}}/archive"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Archive path succeeded', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Resume Path",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/learning/paths/{{learning_path_id}}/resume"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Resume path succeeded', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Archive Path (Before Reset)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/learning/paths/{{learning_path_id}}/archive",
+            "description": "Ensures path is archived before reset call."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Archive before reset responded', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Reset Path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/learning/paths/{{learning_path_id}}/reset"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Path reset succeeded', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const newPathId = json?.data?.path?.id || '';",
+                  "if (newPathId) {",
+                  "  pm.collectionVariables.set('previous_learning_path_id', pm.collectionVariables.get('learning_path_id') || '');",
+                  "  pm.collectionVariables.set('learning_path_id', newPathId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Delete Active Path",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/learning/paths/{{learning_path_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Path deletion succeeded', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
+            },
+            "url": "{{base_url}}/auth/logout"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Logout endpoint responded', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const envLanguage = pm.environment.get('language');",
+          "if (!pm.collectionVariables.get('target_language') && envLanguage) {",
+          "  pm.collectionVariables.set('target_language', envLanguage);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "refresh_token",
+      "value": ""
+    },
+    {
+      "key": "learner_id",
+      "value": ""
+    },
+    {
+      "key": "learning_path_id",
+      "value": ""
+    },
+    {
+      "key": "previous_learning_path_id",
+      "value": ""
+    },
+    {
+      "key": "profession_id",
+      "value": ""
+    },
+    {
+      "key": "profession_slug",
+      "value": ""
+    },
+    {
+      "key": "subcategory_id",
+      "value": ""
+    },
+    {
+      "key": "language",
+      "value": "es"
+    },
+    {
+      "key": "target_language",
+      "value": "es"
+    },
+    {
+      "key": "lesson_id",
+      "value": ""
+    },
+    {
+      "key": "completed_lesson_id",
+      "value": ""
+    },
+    {
+      "key": "completion_payload",
+      "value": ""
+    },
+    {
+      "key": "session_retry_count",
+      "value": "0"
+    },
+    {
+      "key": "e2e_email",
+      "value": ""
+    },
+    {
+      "key": "e2e_password",
+      "value": ""
+    },
+    {
+      "key": "e2e_full_name",
+      "value": ""
+    }
+  ]
+}

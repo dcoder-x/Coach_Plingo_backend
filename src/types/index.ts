@@ -18,7 +18,6 @@ export interface ApiResponse<T = unknown> {
 export interface JwtPayload {
   learnerId: string;
   email: string;
-  tokenType?: 'access' | 'refresh' | 'onboarding';
   iat: number;
   exp: number;
 }
@@ -57,7 +56,6 @@ export interface GeneratedWordData {
     language: string;
     translation: string;
   }[];
-  examplePhrases: string[];
   exampleSentences: string[];
   tags: string[];
   complexityLevel: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';

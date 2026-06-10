@@ -11,17 +11,25 @@ const controller = new VocabularyController(prisma);
 
 // Param and query validators
 const pathIdSchema = z.object({
-  pathId: z.string().min(1, 'Invalid path ID'),
+  pathId: z.string().uuid('Invalid path ID'),
 });
 
 const wordIdSchema = z.object({
-  wordId: z.string().min(1, 'Invalid word ID'),
+  wordId: z.string().uuid('Invalid word ID'),
 });
 
 const globalSetQuerySchema = z.object({
   language: z.string().min(2),
   profession: z.string().min(2),
   difficulty: z.string().optional(),
+});
+
+const highFrequencyQuerySchema = z.object({
+  limit: z
+    .string()
+    .optional()
+    .transform((value) => (value ? Number(value) : 10))
+    .pipe(z.number().int().min(1).max(20)),
 });
 
 /**
@@ -31,7 +39,7 @@ const globalSetQuerySchema = z.object({
 router.get(
   '/active-window/:pathId',
   authenticateToken,
-  // validate({ params: pathIdSchema }),
+  validate({ params: pathIdSchema }),
   (req, res, next) => controller.getActiveWindow(req, res, next),
 );
 
@@ -66,6 +74,17 @@ router.get(
   authenticateToken,
   validate({ query: globalSetQuerySchema }),
   (req, res, next) => controller.getGlobalSetStats(req, res, next),
+);
+
+/**
+ * GET /vocabulary/high-frequency/:pathId
+ * Get top high-frequency words for a path language with pre-generated translations.
+ */
+router.get(
+  '/high-frequency/:pathId',
+  authenticateToken,
+  validate({ query: highFrequencyQuerySchema }),
+  (req, res, next) => controller.getHighFrequencyWords(req, res, next),
 );
 
 export default router;

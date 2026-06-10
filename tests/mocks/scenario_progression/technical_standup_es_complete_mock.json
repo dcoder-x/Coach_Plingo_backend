@@ -1,0 +1,592 @@
+{
+  "meta": {
+    "name": "technical_standup_es_complete_mock",
+    "version": 2,
+    "targetLanguage": "es",
+    "baseLanguage": "en",
+    "lessonType": "SCENARIO",
+    "pathId": "mock_path_id_for_progression_tests",
+    "lessonId": "cmoulovsn0002ez8zkvvrf3ys",
+    "notes": [
+      "This fixture is aligned to LessonSessionService.completeScenarioSession validation and response shape.",
+      "Comprehension scoring requires exact string match against DB correctAnswer (trimmed, lowercase).",
+      "If DB correctAnswer values differ from assumedDbAnswerKey, update completion payload responses accordingly.",
+      "Current path progress endpoint is still milestone-based in LearningService.getPathProgress.",
+      "Scoring v2: totalExercises = (wordCount * 2) + questionCount = 24. lessonPassed = passRate >= 70%.",
+      "BEHAVIORAL CHANGE: failOnComprehensionScore now PASSES (20/24 = 83.3%) because passRate threshold replaced allWordsMastered gate.",
+      "Word mastery is sticky: fillGapCompleted and pronunciationPassed never revert once true.",
+      "lessonMastered = wordMasteryLevel >= 70 (% of lesson words with mastered=true)."
+    ]
+  },
+  "currentScenarioSessionResponse": {
+    "success": true,
+    "data": {
+      "ready": true,
+      "lessonType": "SCENARIO",
+      "lessonId": "cmoulovsn0002ez8zkvvrf3ys",
+      "words": [
+        {
+          "id": "cmoulovtz0004ez8zsit3zn5t",
+          "word": "prueba",
+          "ipa": "/ˈpɾwe.βa/",
+          "complexityLevel": "BEGINNER",
+          "examplePhrases": [],
+          "fillGapSentences": [
+            {
+              "template": "La ___ debe ser completada hoy",
+              "answer": "prueba"
+            },
+            {
+              "template": "Necesitamos mas tiempo para la ___",
+              "answer": "prueba"
+            }
+          ],
+          "tags": [
+            "debugging",
+            "status",
+            "testing"
+          ],
+          "translation": "test",
+          "audioUrl": "https://res.cloudinary.com/dj05sikvr/video/upload/v1778513726/coachplingo/lesson-audio/es/brxij85yddi0dtnxndq2.mp3",
+          "position": 1
+        },
+        {
+          "id": "cmoulovuh0008ez8zv753lc1i",
+          "word": "riesgo",
+          "ipa": "/ˈɾjes.ɡo/",
+          "complexityLevel": "INTERMEDIATE",
+          "examplePhrases": [],
+          "fillGapSentences": [
+            {
+              "template": "Debemos mitigar el ___",
+              "answer": "riesgo"
+            },
+            {
+              "template": "El ___ afecta el cronograma",
+              "answer": "riesgo"
+            }
+          ],
+          "tags": [
+            "risk",
+            "decision-making",
+            "coordination"
+          ],
+          "translation": "risk",
+          "audioUrl": "https://res.cloudinary.com/dj05sikvr/video/upload/v1778513728/coachplingo/lesson-audio/es/iqap5ib5un5oxc13kfs1.mp3",
+          "position": 2
+        },
+        {
+          "id": "cmoulovum000cez8z96mzg0a0",
+          "word": "despliegue",
+          "ipa": "/des.pliˈɡe/",
+          "complexityLevel": "INTERMEDIATE",
+          "examplePhrases": [],
+          "fillGapSentences": [
+            {
+              "template": "El ___ se realizara el viernes",
+              "answer": "despliegue"
+            },
+            {
+              "template": "Necesitamos preparar el ___",
+              "answer": "despliegue"
+            }
+          ],
+          "tags": [
+            "rollout",
+            "status",
+            "delivery"
+          ],
+          "translation": "deployment",
+          "audioUrl": "https://res.cloudinary.com/dj05sikvr/video/upload/v1778513730/coachplingo/lesson-audio/es/vbqenu8oe4afxzxjao3t.mp3",
+          "position": 3
+        },
+        {
+          "id": "cmoulovur000gez8z8ksb3i72",
+          "word": "dependencia",
+          "ipa": "/depenˈdenθja/",
+          "complexityLevel": "INTERMEDIATE",
+          "examplePhrases": [],
+          "fillGapSentences": [
+            {
+              "template": "La ___ debe ser gestionada",
+              "answer": "dependencia"
+            },
+            {
+              "template": "Estamos esperando una ___",
+              "answer": "dependencia"
+            }
+          ],
+          "tags": [
+            "dependency",
+            "coordination",
+            "status"
+          ],
+          "translation": "dependency",
+          "audioUrl": "https://res.cloudinary.com/dj05sikvr/video/upload/v1778513731/coachplingo/lesson-audio/es/xdlic8xwyfrxkqssr1dq.mp3",
+          "position": 4
+        },
+        {
+          "id": "cmoulovv0000kez8zu7ovo2e2",
+          "word": "escalabilidad",
+          "ipa": "/es.kala.βi.li.ðað/",
+          "complexityLevel": "INTERMEDIATE",
+          "examplePhrases": [],
+          "fillGapSentences": [
+            {
+              "template": "La ___ del sistema es crucial.",
+              "answer": "escalabilidad"
+            },
+            {
+              "template": "Estamos evaluando la ___ de la aplicacion.",
+              "answer": "escalabilidad"
+            }
+          ],
+          "tags": [
+            "architecture",
+            "scalability",
+            "system design"
+          ],
+          "translation": "scalability",
+          "audioUrl": "https://res.cloudinary.com/dj05sikvr/video/upload/v1778513733/coachplingo/lesson-audio/es/dojyuh5a5zkgi8iujeyk.mp3",
+          "position": 5
+        },
+        {
+          "id": "cmoulovv6000oez8zxo4qlc49",
+          "word": "prioridad",
+          "ipa": null,
+          "complexityLevel": "INTERMEDIATE",
+          "examplePhrases": [],
+          "fillGapSentences": [
+            {
+              "template": "La ___ afecta el bloqueo de hoy.",
+              "answer": "prioridad"
+            },
+            {
+              "template": "Debemos revisar la ___ antes del la entrega.",
+              "answer": "prioridad"
+            }
+          ],
+          "tags": [
+            "bloqueo",
+            "entrega",
+            "seguimiento"
+          ],
+          "translation": "priority",
+          "audioUrl": "https://res.cloudinary.com/dj05sikvr/video/upload/v1778513734/coachplingo/lesson-audio/es/o5avjslyi5d6wsxi77la.mp3",
+          "position": 6
+        },
+        {
+          "id": "cmoulovvd000sez8zrivzwveq",
+          "word": "latencia",
+          "ipa": null,
+          "complexityLevel": "INTERMEDIATE",
+          "examplePhrases": [],
+          "fillGapSentences": [
+            {
+              "template": "La ___ afecta el rendimiento de hoy.",
+              "answer": "latencia"
+            },
+            {
+              "template": "Debemos revisar la ___ antes del el servicio.",
+              "answer": "latencia"
+            }
+          ],
+          "tags": [
+            "rendimiento",
+            "servicio",
+            "observabilidad"
+          ],
+          "translation": "latency",
+          "audioUrl": "https://res.cloudinary.com/dj05sikvr/video/upload/v1778513736/coachplingo/lesson-audio/es/ycknozhkqqorwymydaem.mp3",
+          "position": 7
+        },
+        {
+          "id": "cmoulovvh000wez8z3l59zz7i",
+          "word": "rollback",
+          "ipa": null,
+          "complexityLevel": "INTERMEDIATE",
+          "examplePhrases": [],
+          "fillGapSentences": [
+            {
+              "template": "La ___ afecta la incidente de hoy.",
+              "answer": "rollback"
+            },
+            {
+              "template": "Debemos revisar la ___ antes del el release.",
+              "answer": "rollback"
+            }
+          ],
+          "tags": [
+            "incidente",
+            "release",
+            "mitigacion"
+          ],
+          "translation": "rollback",
+          "audioUrl": "https://res.cloudinary.com/dj05sikvr/video/upload/v1778513737/coachplingo/lesson-audio/es/z1p0rjmtmqnnuln5dukz.mp3",
+          "position": 8
+        },
+        {
+          "id": "cmoulovvm0010ez8zervzdkao",
+          "word": "incidencia",
+          "ipa": null,
+          "complexityLevel": "INTERMEDIATE",
+          "examplePhrases": [],
+          "fillGapSentences": [
+            {
+              "template": "La ___ afecta el servicio de hoy.",
+              "answer": "incidencia"
+            },
+            {
+              "template": "Debemos revisar la ___ antes del el impacto.",
+              "answer": "incidencia"
+            }
+          ],
+          "tags": [
+            "servicio",
+            "impacto",
+            "mitigacion"
+          ],
+          "translation": "incident",
+          "audioUrl": "https://res.cloudinary.com/dj05sikvr/video/upload/v1778513739/coachplingo/lesson-audio/es/k5puqggt6l3o1wrwvpx5.mp3",
+          "position": 9
+        },
+        {
+          "id": "cmoulovvt0014ez8zi2c4bj7s",
+          "word": "integracion",
+          "ipa": null,
+          "complexityLevel": "INTERMEDIATE",
+          "examplePhrases": [],
+          "fillGapSentences": [
+            {
+              "template": "La ___ afecta el endpoint de hoy.",
+              "answer": "integracion"
+            },
+            {
+              "template": "Debemos revisar la ___ antes del el contrato.",
+              "answer": "integracion"
+            }
+          ],
+          "tags": [
+            "endpoint",
+            "contrato",
+            "prueba"
+          ],
+          "translation": "integration",
+          "audioUrl": "https://res.cloudinary.com/dj05sikvr/video/upload/v1778513740/coachplingo/lesson-audio/es/mlzbzddj9ibrqh2596mo.mp3",
+          "position": 10
+        }
+      ],
+      "comprehension": [
+        {
+          "id": "cmoulovvz0018ez8zhqcjv2qz",
+          "content": "Durante la reunion tecnica, discutimos la prueba del nuevo sistema de despliegue. Identificamos un riesgo significativo relacionado con la latencia, que podria afectar la escalabilidad de nuestra aplicacion. La dependencia de un servicio externo ha sido una prioridad en nuestra planificacion, pero hemos tenido una incidencia que requiere atencion inmediata. Se propuso un rollback a la version anterior mientras se resuelve el problema de integracion. Necesitamos decidir si priorizamos la correccion del problema actual o si seguimos adelante con el despliegue, asumiendo el riesgo de latencia.",
+          "position": 1,
+          "questions": [
+            {
+              "questionId": "cmoulovwe0019ez8ztxbnmlgu",
+              "questionText": "Cual es el riesgo identificado en la reunion?",
+              "options": [
+                "Problemas de escalabilidad",
+                "Baja latencia",
+                "Incidencias en el despliegue",
+                "Dependencia de servicios externos"
+              ],
+              "optionsTranslation": [],
+              "questionType": "multiple_choice",
+              "position": 1
+            },
+            {
+              "questionId": "cmoulovwe001aez8zl2ya8q6k",
+              "questionText": "Que se propuso hacer mientras se resuelve el problema?",
+              "options": [
+                "Hacer un despliegue inmediato",
+                "Realizar un rollback",
+                "Aumentar la latencia",
+                "Ignorar la incidencia"
+              ],
+              "optionsTranslation": [],
+              "questionType": "multiple_choice",
+              "position": 2
+            },
+            {
+              "questionId": "cmoulovwe001bez8z1g5avfrh",
+              "questionText": "Cual es la prioridad en la planificacion actual?",
+              "options": [
+                "Mejorar la escalabilidad",
+                "Resolver la incidencia",
+                "Reducir la latencia",
+                "Aumentar la dependencia"
+              ],
+              "optionsTranslation": [],
+              "questionType": "multiple_choice",
+              "position": 3
+            },
+            {
+              "questionId": "cmoulovwe001cez8z7nsmchj4",
+              "questionText": "Que aspecto del sistema se esta evaluando en la reunion?",
+              "options": [],
+              "optionsTranslation": [],
+              "questionType": "short_answer",
+              "position": 4
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "assumedDbAnswerKey": {
+    "cmoulovwe0019ez8ztxbnmlgu": "Baja latencia",
+    "cmoulovwe001aez8zl2ya8q6k": "Realizar un rollback",
+    "cmoulovwe001bez8z1g5avfrh": "Resolver la incidencia",
+    "cmoulovwe001cez8z7nsmchj4": "despliegue"
+  },
+  "completionRequestPayloads": {
+    "happyPathPassAndUnlockNext": {
+      "lessonType": "SCENARIO",
+      "lessonId": "cmoulovsn0002ez8zkvvrf3ys",
+      "wordResults": [
+        { "wordId": "cmoulovtz0004ez8zsit3zn5t", "pronunciationScore": 92, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovuh0008ez8zv753lc1i", "pronunciationScore": 88, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovum000cez8z96mzg0a0", "pronunciationScore": 84, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovur000gez8z8ksb3i72", "pronunciationScore": 90, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovv0000kez8zu7ovo2e2", "pronunciationScore": 87, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovv6000oez8zxo4qlc49", "pronunciationScore": 86, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovvd000sez8zrivzwveq", "pronunciationScore": 91, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovvh000wez8z3l59zz7i", "pronunciationScore": 85, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovvm0010ez8zervzdkao", "pronunciationScore": 89, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovvt0014ez8zi2c4bj7s", "pronunciationScore": 93, "fillGapCorrect": true, "attemptCount": 1 }
+      ],
+      "comprehensionResponses": [
+        { "questionId": "cmoulovwe0019ez8ztxbnmlgu", "response": "Baja latencia" },
+        { "questionId": "cmoulovwe001aez8zl2ya8q6k", "response": "Realizar un rollback" },
+        { "questionId": "cmoulovwe001bez8z1g5avfrh", "response": "Resolver la incidencia" },
+        { "questionId": "cmoulovwe001cez8z7nsmchj4", "response": "despliegue" }
+      ]
+    },
+    "failOnWordMastery": {
+      "lessonType": "SCENARIO",
+      "lessonId": "cmoulovsn0002ez8zkvvrf3ys",
+      "wordResults": [
+        { "wordId": "cmoulovtz0004ez8zsit3zn5t", "pronunciationScore": 92, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovuh0008ez8zv753lc1i", "pronunciationScore": 65, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovum000cez8z96mzg0a0", "pronunciationScore": 84, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovur000gez8z8ksb3i72", "pronunciationScore": 90, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovv0000kez8zu7ovo2e2", "pronunciationScore": 87, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovv6000oez8zxo4qlc49", "pronunciationScore": 86, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovvd000sez8zrivzwveq", "pronunciationScore": 91, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovvh000wez8z3l59zz7i", "pronunciationScore": 85, "fillGapCorrect": false, "attemptCount": 1 },
+        { "wordId": "cmoulovvm0010ez8zervzdkao", "pronunciationScore": 89, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovvt0014ez8zi2c4bj7s", "pronunciationScore": 93, "fillGapCorrect": true, "attemptCount": 1 }
+      ],
+      "comprehensionResponses": [
+        { "questionId": "cmoulovwe0019ez8ztxbnmlgu", "response": "Baja latencia" },
+        { "questionId": "cmoulovwe001aez8zl2ya8q6k", "response": "Realizar un rollback" },
+        { "questionId": "cmoulovwe001bez8z1g5avfrh", "response": "Resolver la incidencia" },
+        { "questionId": "cmoulovwe001cez8z7nsmchj4", "response": "despliegue" }
+      ]
+    },
+    "failOnComprehensionScore": {
+      "lessonType": "SCENARIO",
+      "lessonId": "cmoulovsn0002ez8zkvvrf3ys",
+      "wordResults": [
+        { "wordId": "cmoulovtz0004ez8zsit3zn5t", "pronunciationScore": 92, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovuh0008ez8zv753lc1i", "pronunciationScore": 88, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovum000cez8z96mzg0a0", "pronunciationScore": 84, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovur000gez8z8ksb3i72", "pronunciationScore": 90, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovv0000kez8zu7ovo2e2", "pronunciationScore": 87, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovv6000oez8zxo4qlc49", "pronunciationScore": 86, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovvd000sez8zrivzwveq", "pronunciationScore": 91, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovvh000wez8z3l59zz7i", "pronunciationScore": 85, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovvm0010ez8zervzdkao", "pronunciationScore": 89, "fillGapCorrect": true, "attemptCount": 1 },
+        { "wordId": "cmoulovvt0014ez8zi2c4bj7s", "pronunciationScore": 93, "fillGapCorrect": true, "attemptCount": 1 }
+      ],
+      "comprehensionResponses": [
+        { "questionId": "cmoulovwe0019ez8ztxbnmlgu", "response": "Problemas de escalabilidad" },
+        { "questionId": "cmoulovwe001aez8zl2ya8q6k", "response": "Hacer un despliegue inmediato" },
+        { "questionId": "cmoulovwe001bez8z1g5avfrh", "response": "Resolver la incidencia" },
+        { "questionId": "cmoulovwe001cez8z7nsmchj4", "response": "despliegue" }
+      ]
+    },
+    "retakePass": {
+      "lessonType": "SCENARIO",
+      "lessonId": "cmoulovsn0002ez8zkvvrf3ys",
+      "wordResults": [
+        { "wordId": "cmoulovtz0004ez8zsit3zn5t", "pronunciationScore": 95, "fillGapCorrect": true, "attemptCount": 2 },
+        { "wordId": "cmoulovuh0008ez8zv753lc1i", "pronunciationScore": 94, "fillGapCorrect": true, "attemptCount": 2 },
+        { "wordId": "cmoulovum000cez8z96mzg0a0", "pronunciationScore": 93, "fillGapCorrect": true, "attemptCount": 2 },
+        { "wordId": "cmoulovur000gez8z8ksb3i72", "pronunciationScore": 95, "fillGapCorrect": true, "attemptCount": 2 },
+        { "wordId": "cmoulovv0000kez8zu7ovo2e2", "pronunciationScore": 92, "fillGapCorrect": true, "attemptCount": 2 },
+        { "wordId": "cmoulovv6000oez8zxo4qlc49", "pronunciationScore": 90, "fillGapCorrect": true, "attemptCount": 2 },
+        { "wordId": "cmoulovvd000sez8zrivzwveq", "pronunciationScore": 91, "fillGapCorrect": true, "attemptCount": 2 },
+        { "wordId": "cmoulovvh000wez8z3l59zz7i", "pronunciationScore": 90, "fillGapCorrect": true, "attemptCount": 2 },
+        { "wordId": "cmoulovvm0010ez8zervzdkao", "pronunciationScore": 94, "fillGapCorrect": true, "attemptCount": 2 },
+        { "wordId": "cmoulovvt0014ez8zi2c4bj7s", "pronunciationScore": 96, "fillGapCorrect": true, "attemptCount": 2 }
+      ],
+      "comprehensionResponses": [
+        { "questionId": "cmoulovwe0019ez8ztxbnmlgu", "response": "Baja latencia" },
+        { "questionId": "cmoulovwe001aez8zl2ya8q6k", "response": "Realizar un rollback" },
+        { "questionId": "cmoulovwe001bez8z1g5avfrh", "response": "Resolver la incidencia" },
+        { "questionId": "cmoulovwe001cez8z7nsmchj4", "response": "despliegue" }
+      ]
+    }
+  },
+  "expectedApiResponses": {
+    "completeScenario_happyPath": {
+      "success": true,
+      "data": {
+        "success": true,
+        "lessonId": "cmoulovsn0002ez8zkvvrf3ys",
+        "retake": false,
+        "lessonPassed": true,
+        "unlockedNextLesson": true,
+        "pathCompleted": false,
+        "wordMasteryLevel": 100,
+        "lessonMastered": true,
+        "performance": {
+          "totalExercises": 24,
+          "passedExercises": 24,
+          "passRate": 100,
+          "breakdown": {
+            "fillGapPassedCount": 10,
+            "pronunciationPassedCount": 10,
+            "comprehensionPassedCount": 4
+          },
+          "thresholds": {
+            "pronunciationPassThreshold": 70,
+            "unlockThreshold": 70,
+            "wordMasteryThreshold": 70
+          }
+        }
+      }
+    },
+    "completeScenario_failOnWordMastery": {
+      "success": true,
+      "data": {
+        "success": true,
+        "lessonId": "cmoulovsn0002ez8zkvvrf3ys",
+        "retake": false,
+        "lessonPassed": false,
+        "unlockedNextLesson": false,
+        "pathCompleted": false,
+        "wordMasteryLevel": 0,
+        "lessonMastered": false,
+        "performance": {
+          "totalExercises": 24,
+          "passedExercises": 4,
+          "passRate": 16.67,
+          "breakdown": {
+            "fillGapPassedCount": 0,
+            "pronunciationPassedCount": 0,
+            "comprehensionPassedCount": 4
+          },
+          "thresholds": {
+            "pronunciationPassThreshold": 70,
+            "unlockThreshold": 70,
+            "wordMasteryThreshold": 70
+          }
+        }
+      }
+    },
+    "completeScenario_allWordsPassComprehensionFail": {
+      "_note": "Under v2 scoring: 10 fill-gap + 10 pronunciation + 0 comprehension = 20/24 = 83.3% — lessonPassed is NOW TRUE. Renamed from failOnComprehension.",
+      "success": true,
+      "data": {
+        "success": true,
+        "lessonId": "cmoulovsn0002ez8zkvvrf3ys",
+        "retake": false,
+        "lessonPassed": true,
+        "unlockedNextLesson": true,
+        "pathCompleted": false,
+        "wordMasteryLevel": 100,
+        "lessonMastered": true,
+        "performance": {
+          "totalExercises": 24,
+          "passedExercises": 20,
+          "passRate": 83.33,
+          "breakdown": {
+            "fillGapPassedCount": 10,
+            "pronunciationPassedCount": 10,
+            "comprehensionPassedCount": 0
+          },
+          "thresholds": {
+            "pronunciationPassThreshold": 70,
+            "unlockThreshold": 70,
+            "wordMasteryThreshold": 70
+          }
+        }
+      }
+    },
+    "completeScenario_retakePass": {
+      "success": true,
+      "data": {
+        "success": true,
+        "lessonId": "cmoulovsn0002ez8zkvvrf3ys",
+        "retake": true,
+        "lessonPassed": true,
+        "unlockedNextLesson": false,
+        "pathCompleted": false,
+        "wordMasteryLevel": 100,
+        "lessonMastered": true,
+        "performance": {
+          "totalExercises": 24,
+          "passedExercises": 22,
+          "passRate": 91.67,
+          "breakdown": {
+            "fillGapPassedCount": 10,
+            "pronunciationPassedCount": 10,
+            "comprehensionPassedCount": 2
+          },
+          "thresholds": {
+            "pronunciationPassThreshold": 70,
+            "unlockThreshold": 70,
+            "wordMasteryThreshold": 70
+          }
+        }
+      }
+    }
+  },
+  "expectedProgressSnapshots": {
+    "lessonMapAfterHappyPath": {
+      "success": true,
+      "data": {
+        "pathId": "mock_path_id_for_progression_tests",
+        "summary": {
+          "totalLessons": 10,
+          "completedLessons": 1,
+          "masteredLessons": 1,
+          "activeLessons": 1,
+          "lockedLessons": 8
+        }
+      }
+    },
+    "pathProgressAfterHappyPath": {
+      "success": true,
+      "data": {
+        "completedLessons": 1,
+        "totalLessons": 10,
+        "masteredLessons": 1,
+        "activeLessons": 1,
+        "lockedLessons": 8,
+        "progressPercent": 10
+      }
+    },
+    "pathVocabularyAfterHappyPath": {
+      "success": true,
+      "data": {
+        "data": [
+          {
+            "word": "prueba",
+            "status": "ACTIVE",
+            "masteryScore": 0,
+            "audioUrl": "https://res.cloudinary.com/dj05sikvr/video/upload/v1778513726/coachplingo/lesson-audio/es/brxij85yddi0dtnxndq2.mp3"
+          }
+        ],
+        "pagination": {
+          "total": 10,
+          "limit": 20,
+          "offset": 0
+        }
+      }
+    }
+  }
+}

@@ -1,115 +1,108 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { AppError } from '../utils/AppError';
-import { ProgressService } from './ProgressService';
-import { PronunciationService } from './PronunciationService';
-import { CloudinaryService } from './CloudinaryService';
-import { ElevenLabsClient } from '../jobs/clients/ElevenLabsClient';
-import { AIService } from './AIService';
-import { LearningService } from './LearningService';
 import { StreakService } from './StreakService';
+import { ContentService } from './ContentService';
+import { BadgeService } from './BadgeService';
 
-import { SimpleLogger } from '../utils/Logger';
+export const completeScenarioSessionSchema = z.object({
+  lessonType: z.literal('SCENARIO'),
+  lessonId: z.string().min(1).optional(),
+  wordResults: z.array(
+    z.object({
+      wordId: z.string().min(1),
+      pronunciationAttemptId: z.string().min(1).optional(),
+      pronunciationScore: z.number().min(0).max(100).optional(),
+      fillGapCorrect: z.boolean(),
+      attemptCount: z.number().int().min(1),
+    }).refine(
+      (value) => value.pronunciationAttemptId || value.pronunciationScore !== undefined,
+      {
+        message: 'pronunciationAttemptId or pronunciationScore is required',
+        path: ['pronunciationAttemptId'],
+      },
+    ),
+  ),
+  comprehensionResponses: z.array(
+    z.object({
+      questionId: z.string().min(1),
+      response: z.string().min(1),
+    }),
+  ),
+});
 
-export const completeCurrentSessionSchema = z
-  .object({
-    lessonType: z.enum(['VOCABULARY_SPRINT', 'COMPREHENSION', 'PRONUNCIATION_MASTERY']),
-    wordResults: z
-      .array(
-        z.object({
-          wordId: z.string().min(1),
-          meaningAccuracy: z.number().min(0).max(10).optional(),
-          usageAccuracy: z.number().min(0).max(10).optional(),
-          pronunciationScore: z.number().min(0).max(10).optional(),
-          responseTime: z.number().positive().optional(),
-        }),
-      )
-      .optional(),
-    questionResponses: z
-      .array(
-        z.object({
-          questionId: z.string().min(1),
-          response: z.string().min(1),
-        }),
-      )
-      .optional(),
-    pronunciationResults: z
-      .array(
-        z.object({
-          exerciseId: z.string().min(1),
-          recordedAudioUrl: z.string().min(1),
-          externalAccuracyScore: z.number().min(0).max(100).optional(),
-          transcript: z.string().min(1).optional(),
-        }),
-      )
-      .optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.lessonType === 'VOCABULARY_SPRINT' && (!value.wordResults || value.wordResults.length === 0)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'wordResults are required for vocabulary sprint completion',
-        path: ['wordResults'],
-      });
-    }
-
-    if (value.lessonType === 'COMPREHENSION' && (!value.questionResponses || value.questionResponses.length === 0)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'questionResponses are required for comprehension completion',
-        path: ['questionResponses'],
-      });
-    }
-
-    if (
-      value.lessonType === 'PRONUNCIATION_MASTERY' &&
-      (!value.pronunciationResults || value.pronunciationResults.length === 0)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'pronunciationResults are required for pronunciation mastery completion',
-        path: ['pronunciationResults'],
-      });
-    }
-  });
-
-type CompleteCurrentSessionInput = z.infer<typeof completeCurrentSessionSchema>;
+export type CompleteScenarioSessionInput = z.infer<typeof completeScenarioSessionSchema>;
 
 export class LessonSessionService {
   private readonly prisma: PrismaClient;
-  private readonly progressService: ProgressService;
-  private readonly pronunciationService: PronunciationService;
-  private readonly cloudinaryService: CloudinaryService;
-  private readonly elevenLabsClient: ElevenLabsClient;
-  private readonly aiService: AIService;
-  private readonly learningService: LearningService;
   private readonly streakService: StreakService;
-  private readonly logger: SimpleLogger;
+  private readonly badgeService: BadgeService;
+  // Scoring thresholds
+  private static readonly PRONUNCIATION_PASS_THRESHOLD = 70;
+  private static readonly UNLOCK_THRESHOLD = 70; // passRate % required to unlock next lesson
+  private static readonly WORD_MASTERY_THRESHOLD = 70; // % of lesson words mastered to set lessonMastered = true
+
+  private readonly contentService: ContentService;
 
   constructor(prisma: PrismaClient) {
     this.prisma = prisma;
-    this.progressService = new ProgressService(prisma);
-    this.pronunciationService = new PronunciationService(prisma);
-    this.cloudinaryService = new CloudinaryService();
-    this.elevenLabsClient = new ElevenLabsClient();
-    this.aiService = new AIService(prisma);
-    this.learningService = new LearningService(prisma);
     this.streakService = new StreakService(prisma);
-    this.logger = new SimpleLogger('LessonSessionService');
+    this.badgeService = new BadgeService(prisma);
+    this.contentService = new ContentService(prisma);
   }
 
-  async getCurrentSession(pathId: string, learnerId: string) {
+  private async getPublishedLessonById(lessonId: string) {
+    const lesson = await this.prisma.scenarioLesson.findUnique({
+      where: { id: lessonId },
+      include: {
+        words: {
+          include: {
+            translations: true,
+            audioCache: true,
+          },
+        },
+        comprehensions: {
+          include: {
+            questions: true,
+          },
+        },
+        scenario: {
+          select: {
+            displayName: true,
+          },
+        },
+      },
+    });
+
+    if (!lesson || lesson.status !== 'PUBLISHED') {
+      throw AppError.notFound('Published lesson not found');
+    }
+
+    return lesson;
+  }
+
+  private rotateSubcategoryOrder<T extends { subcategoryId: string; subcategoryPosition: number }>(
+    items: T[],
+    currentSubcategoryId: string | null | undefined,
+  ): T[] {
+    const ordered = [...items].sort((a, b) => a.subcategoryPosition - b.subcategoryPosition);
+    if (!currentSubcategoryId) {
+      return ordered;
+    }
+
+    const startIndex = ordered.findIndex((item) => item.subcategoryId === currentSubcategoryId);
+    if (startIndex <= 0) {
+      return ordered;
+    }
+
+    return [...ordered.slice(startIndex), ...ordered.slice(0, startIndex)];
+  }
+
+  async getCurrentScenarioSession(pathId: string, learnerId: string): Promise<Record<string, unknown>> {
     const path = await this.prisma.learningPath.findUnique({
       where: { id: pathId },
       include: {
         learner: true,
-        currentSubcategory: {
-          select: {
-            id: true,
-            name: true,
-            position: true,
-          },
-        },
       },
     });
 
@@ -121,754 +114,818 @@ export class LessonSessionService {
       throw AppError.forbidden('Not authorized');
     }
 
-    const milestone = await this.prisma.milestone.findUnique({
-      where: {
-        learningPathId_milestoneNumber: {
-          learningPathId: pathId,
-          milestoneNumber: path.currentMilestone,
-        },
-      },
-    });
-
-    if (!milestone) {
-      throw AppError.notFound('Active milestone not found');
+    if (!path.professionId) {
+      throw AppError.badRequest('Learning path is missing profession reference');
     }
 
-    let session: Record<string, unknown>;
-
-    if (path.currentMilestone === 1) {
-      session = await this.buildVocabularySprintSession(
-        pathId,
-        path.language,
-        path.learner.baseLanguage,
-        milestone.id,
-      );
-    } else if (path.currentMilestone === 2) {
-      session = await this.buildComprehensionSession(pathId, milestone.id);
-    } else {
-      session = await this.buildPronunciationSession(pathId, milestone.id);
-    }
-
-    const totalSubcategories = await this.prisma.subcategoryProgress.count({
-      where: { learningPathId: pathId },
-    });
-    const currentSubcategoryProgress = path.currentSubcategoryId
-      ? await this.prisma.subcategoryProgress.findUnique({
-        where: {
-          learningPathId_subcategoryId: {
-            learningPathId: pathId,
-            subcategoryId: path.currentSubcategoryId,
-          },
-        },
-      })
-      : null;
-
-    return {
-      ...session,
-      subcategory: path.currentSubcategory
-        ? {
-          id: path.currentSubcategory.id,
-          name: path.currentSubcategory.name,
-          position: path.currentSubcategory.position,
-          total: totalSubcategories,
-        }
-        : null,
-      subcategoryProgress: currentSubcategoryProgress
-        ? {
-          wordsCompleted: currentSubcategoryProgress.wordsCompleted,
-          wordsTotal: currentSubcategoryProgress.wordsTotal,
-          currentMilestone: path.currentMilestone,
-          milestonesCompleted: currentSubcategoryProgress.milestonesCompleted,
-        }
-        : null,
-    };
-  }
-
-  async completeCurrentSession(pathId: string, learnerId: string, input: CompleteCurrentSessionInput) {
-    const path = await this.prisma.learningPath.findUnique({
-      where: { id: pathId },
-      include: { learner: true },
-    });
-
-    if (!path) {
-      throw AppError.notFound('Learning path not found');
-    }
-
-    if (path.learnerId !== learnerId) {
-      throw AppError.forbidden('Not authorized');
-    }
-
-    if (path.currentMilestone === 1 && input.lessonType !== 'VOCABULARY_SPRINT') {
-      throw AppError.badRequest('Current session expects vocabulary sprint completion');
-    }
-    if (path.currentMilestone === 2 && input.lessonType !== 'COMPREHENSION') {
-      throw AppError.badRequest('Current session expects comprehension completion');
-    }
-    if (path.currentMilestone === 3 && input.lessonType !== 'PRONUNCIATION_MASTERY') {
-      throw AppError.badRequest('Current session expects pronunciation mastery completion');
-    }
-
-    let result: Record<string, unknown>;
-
-    if (path.currentMilestone === 1) {
-      result = await this.completeVocabularySprint(pathId, learnerId, input.wordResults || []);
-    } else if (path.currentMilestone === 2) {
-      result = await this.completeComprehension(pathId, learnerId, input.questionResponses || []);
-    } else {
-      result = await this.completePronunciationMastery(pathId, learnerId, input.pronunciationResults || []);
-    }
-
-    await this.streakService.updateStreak(learnerId, new Date());
-
-    return {
-      ...result,
-      subcategoryCompleted: Boolean(result.subcategoryCompleted),
-      nextSubcategory: (result.nextSubcategory as Record<string, unknown> | null) ?? null,
-      courseCompleted: Boolean(result.courseCompleted),
-    };
-  }
-
-  private async buildVocabularySprintSession(
-    pathId: string,
-    language: string,
-    baseLanguage: string,
-    milestoneId: string,
-  ) {
-    const activeStates = await this.prisma.learnerWordState.findMany({
+    const activeRows = await this.prisma.learnerScenarioProgress.findMany({
       where: {
         learningPathId: pathId,
         status: 'ACTIVE',
       },
       include: {
-        word: {
+        lesson: {
           include: {
-            translations: {
-              where: { baseLanguage },
+            scenario: {
+              select: {
+                displayName: true,
+              },
             },
-            audioCache: true,
+            subcategory: {
+              select: {
+                name: true,
+                position: true,
+              },
+            },
           },
         },
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [
+        { lesson: { subcategory: { position: 'asc' } } },
+        { lesson: { scenarioPosition: 'asc' } },
+        { createdAt: 'asc' },
+      ],
     });
 
-    if (activeStates.length === 0) {
+    if (activeRows.length === 0) {
       return {
-        sessionId: `path:${pathId}:milestone:1`,
-        lessonType: 'VOCABULARY_SPRINT',
-        status: 'PREPARING',
         ready: false,
-        words: [],
-        steps: [],
+        status: 'PREPARING' as const,
       };
     }
 
-    const words = await Promise.all(
-      activeStates.map(async (state, index) => {
-        const pronunciationAudioUrl = state.word.audioCache?.audioUrl || (await this.ensureWordAudio(state.wordId, language, state.word.word));
+    const active = activeRows.find((row) => row.lesson.scenarioId === path.currentScenarioId) ?? activeRows[0];
 
-        return {
-          index: index + 1,
-          wordId: state.wordId,
-          text: state.word.word,
-          translation:
-            state.word.translations.length > 0 ? state.word.translations[0].translation : null,
-          pronunciationAudioUrl,
-          examplePhrases: this.asStringArray(state.word.examplePhrases),
-          exampleSentences: this.asStringArray(state.word.exampleSentences),
-          difficulty: state.word.complexityLevel,
-          tags: this.asStringArray(state.word.tags),
-          masteryScore: Number(state.masteryScore),
-          pronunciationScore: Number(state.pronunciationScore),
-          status: state.status,
-        };
-      }),
-    );
+    if (activeRows.length > 1) {
+      const duplicateIds = activeRows
+        .filter((row) => row.id !== active.id)
+        .map((row) => row.id);
 
-    const steps = this.buildVocabularySprintSteps(words);
-    const progress = await this.progressService.getMilestoneProgress(pathId, 1);
+      await this.prisma.$transaction(async (tx) => {
+        await tx.learnerScenarioProgress.updateMany({
+          where: {
+            learningPathId: pathId,
+            status: 'ACTIVE',
+            id: { in: duplicateIds },
+          },
+          data: {
+            status: 'LOCKED',
+          },
+        });
 
-    return {
-      sessionId: `path:${pathId}:milestone:1`,
-      lessonType: 'VOCABULARY_SPRINT',
-      status: 'READY',
-      ready: true,
-      milestone: {
-        id: milestoneId,
-        milestoneNumber: 1,
-        type: 'VOCABULARY_SPRINT',
-      },
-      progress,
-      words,
-      steps,
-    };
+        await tx.learningPath.update({
+          where: { id: pathId },
+          data: {
+            currentScenarioId: active.lesson.scenarioId,
+            currentSubcategoryId: active.lesson.subcategoryId,
+          },
+        });
+      });
+    }
+
+    const content = await this.contentService.getOrGenerateLesson({
+      professionId: path.professionId,
+      subcategoryId: active.lesson.subcategoryId,
+      scenarioId: active.lesson.scenarioId,
+      language: path.language,
+      baseLanguage: path.learner.baseLanguage,
+    });
+
+    if (!content.ready) {
+      return {
+        ...content,
+        lessonType: 'SCENARIO' as const,
+        lessonId: active.lessonId,
+        scenarioId: active.lesson.scenarioId,
+        scenarioTitle: active.lesson.scenario.displayName,
+        subcategoryId: active.lesson.subcategoryId,
+        subcategoryName: active.lesson.subcategory.name,
+      };
+    }
+
+    return this.contentService.buildSessionPayload({
+      pathId,
+      lesson: content.lesson,
+      baseLanguage: path.learner.baseLanguage,
+    });
   }
 
-  private async buildComprehensionSession(pathId: string, milestoneId: string) {
-    const story = await this.prisma.story.findUnique({
-      where: { milestoneId },
+  async completeScenarioSession(
+    pathId: string,
+    learnerId: string,
+    input: CompleteScenarioSessionInput,
+  ): Promise<Record<string, unknown>> {
+    const path = await this.prisma.learningPath.findUnique({
+      where: { id: pathId },
+      select: {
+        id: true,
+        learnerId: true,
+        currentSubcategoryId: true,
+      },
+    });
+
+    if (!path) {
+      throw AppError.notFound('Learning path not found');
+    }
+
+    if (path.learnerId !== learnerId) {
+      throw AppError.forbidden('Not authorized');
+    }
+
+    const targetProgress = await this.prisma.learnerScenarioProgress.findFirst({
+      where: input.lessonId
+        ? {
+          learningPathId: pathId,
+          lessonId: input.lessonId,
+          status: { in: ['ACTIVE', 'COMPLETED'] },
+        }
+        : {
+          learningPathId: pathId,
+          status: 'ACTIVE',
+        },
       include: {
-        questions: {
-          orderBy: { position: 'asc' },
+        lesson: {
+          include: {
+            words: true,
+            comprehensions: {
+              include: {
+                questions: true,
+              },
+            },
+          },
         },
       },
     });
 
-    if (!story) {
-      return {
-        sessionId: `path:${pathId}:milestone:2`,
-        lessonType: 'COMPREHENSION',
-        status: 'PREPARING',
-        ready: false,
-      };
+    if (!targetProgress) {
+      throw AppError.badRequest('No matching scenario lesson found');
     }
 
-    return {
-      sessionId: `path:${pathId}:milestone:2`,
-      lessonType: 'COMPREHENSION',
-      status: 'READY',
-      ready: true,
-      milestone: {
-        id: milestoneId,
-        milestoneNumber: 2,
-        type: 'COMPREHENSION',
-      },
-      story: {
-        id: story.id,
-        content: story.content,
-        vocabularyCoverage: this.asStringArray(story.vocabularyCoverage),
-        questions: story.questions.map((question) => ({
-          questionId: question.id,
-          questionText: question.questionText,
-          options: this.asStringArray(question.options),
-          questionType: question.questionType,
-          position: question.position,
-        })),
-      },
-    };
-  }
+    const isRetake = targetProgress.status === 'COMPLETED';
 
-  private async buildPronunciationSession(pathId: string, milestoneId: string) {
-    const exercises = await this.prisma.pronunciationExercise.findMany({
-      where: { milestoneId },
-      orderBy: { position: 'asc' },
+    const validWordIds = new Set(targetProgress.lesson.words.map((word) => word.id));
+    const wordCount = validWordIds.size;
+
+    if (input.wordResults.length !== wordCount) {
+      throw AppError.badRequest('wordResults must include exactly all lesson words');
+    }
+
+    const submittedWordIds = new Set(input.wordResults.map((result) => result.wordId));
+    if (submittedWordIds.size !== wordCount) {
+      throw AppError.badRequest('wordResults contains duplicate or missing word ids');
+    }
+
+    for (const wordResult of input.wordResults) {
+      if (!validWordIds.has(wordResult.wordId)) {
+        throw AppError.badRequest(`Invalid word id for current lesson: ${wordResult.wordId}`);
+      }
+    }
+
+    const questions = targetProgress.lesson.comprehensions.flatMap((comprehension) => comprehension.questions);
+    const questionsById = new Map(questions.map((question) => [question.id, question]));
+
+    if (questionsById.size > 0) {
+      if (input.comprehensionResponses.length !== questionsById.size) {
+        throw AppError.badRequest('comprehensionResponses must include exactly all lesson questions');
+      }
+
+      const submittedQuestionIds = new Set(input.comprehensionResponses.map((response) => response.questionId));
+      if (submittedQuestionIds.size !== questionsById.size) {
+        throw AppError.badRequest('comprehensionResponses contains duplicate or missing question ids');
+      }
+    }
+
+    let correctAnswers = 0;
+    let fillGapPassedCount = 0;
+    let pronunciationPassedCount = 0;
+    let lessonPassed = false;
+    let unlockedNextLesson = false;
+    let pathCompleted = false;
+    let wordMasteryLevel = 0;
+    let lessonMastered = false;
+    let xpEarned = 0;
+
+    const pronunciationAttemptIds = input.wordResults
+      .map((result) => result.pronunciationAttemptId)
+      .filter((attemptId): attemptId is string => Boolean(attemptId));
+
+    const uniqueAttemptIds = [...new Set(pronunciationAttemptIds)];
+    const attemptsById = new Map<string, { id: string; wordId: string | null; accuracyScore: Prisma.Decimal }>();
+
+    if (uniqueAttemptIds.length > 0) {
+      const attempts = await this.prisma.pronunciationAttempt.findMany({
+        where: {
+          id: { in: uniqueAttemptIds },
+          learnerId,
+        },
+        select: {
+          id: true,
+          wordId: true,
+          accuracyScore: true,
+        },
+      });
+
+      if (attempts.length !== uniqueAttemptIds.length) {
+        throw AppError.badRequest('One or more pronunciation attempts are invalid for this learner');
+      }
+
+      for (const attempt of attempts) {
+        attemptsById.set(attempt.id, attempt);
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const wordResult of input.wordResults) {
+        const attempt = wordResult.pronunciationAttemptId
+          ? attemptsById.get(wordResult.pronunciationAttemptId)
+          : null;
+
+        if (wordResult.pronunciationAttemptId && !attempt) {
+          throw AppError.badRequest(`Pronunciation attempt not found: ${wordResult.pronunciationAttemptId}`);
+        }
+
+        if (attempt && attempt.wordId !== wordResult.wordId) {
+          throw AppError.badRequest(
+            `Pronunciation attempt ${attempt.id} does not belong to word ${wordResult.wordId}`,
+          );
+        }
+
+        const rawPronunciationScore = attempt
+          ? Number(attempt.accuracyScore)
+          : wordResult.pronunciationScore;
+
+        if (rawPronunciationScore === undefined) {
+          throw AppError.badRequest(
+            `Pronunciation score is missing for word ${wordResult.wordId}`,
+          );
+        }
+
+        const normalizedPronunciationScore = Math.max(0, Math.min(100, rawPronunciationScore));
+        const pronunciationPassed = normalizedPronunciationScore >= LessonSessionService.PRONUNCIATION_PASS_THRESHOLD;
+        if (wordResult.fillGapCorrect) fillGapPassedCount += 1;
+        if (pronunciationPassed) pronunciationPassedCount += 1;
+
+        await tx.learnerWordState.upsert({
+          where: {
+            learningPathId_scenarioWordId: {
+              learningPathId: pathId,
+              scenarioWordId: wordResult.wordId,
+            },
+          },
+          update: {
+            pronunciationScore: normalizedPronunciationScore / 10,
+            attemptCount: {
+              increment: wordResult.attemptCount,
+            },
+            // Sticky booleans — only upgrade, never revert
+            ...(wordResult.fillGapCorrect && { fillGapCompleted: true, usageCompleted: true }),
+            ...(pronunciationPassed && { pronunciationPassed: true }),
+            lastAttemptedAt: new Date(),
+          },
+          create: {
+            learningPathId: pathId,
+            scenarioWordId: wordResult.wordId,
+            status: 'ACTIVE',
+            meaningSeen: true,
+            usageCompleted: wordResult.fillGapCorrect,
+            fillGapCompleted: wordResult.fillGapCorrect,
+            pronunciationPassed,
+            pronunciationScore: normalizedPronunciationScore / 10,
+            attemptCount: wordResult.attemptCount,
+            lastAttemptedAt: new Date(),
+          },
+        });
+      }
+
+      // After all word upserts, recompute mastered flag for each word based on sticky state
+      // then update lessonMastered count. We do this in two passes to handle the sticky logic.
+      const lessonWordIds = input.wordResults.map((r) => r.wordId);
+      const wordStates = await tx.learnerWordState.findMany({
+        where: {
+          learningPathId: pathId,
+          scenarioWordId: { in: lessonWordIds },
+        },
+        select: { id: true, fillGapCompleted: true, pronunciationPassed: true, mastered: true },
+      });
+
+      let masteredCount = 0;
+      for (const ws of wordStates) {
+        const nowMastered = ws.fillGapCompleted && ws.pronunciationPassed;
+        if (nowMastered !== ws.mastered) {
+          await tx.learnerWordState.update({
+            where: { id: ws.id },
+            data: { mastered: nowMastered, status: nowMastered ? 'MASTERED' : 'ACTIVE' },
+          });
+        }
+        if (nowMastered) masteredCount += 1;
+      }
+
+      wordMasteryLevel = wordCount > 0 ? Math.round((masteredCount / wordCount) * 10000) / 100 : 0;
+      lessonMastered = wordMasteryLevel >= LessonSessionService.WORD_MASTERY_THRESHOLD;
+
+      for (const response of input.comprehensionResponses) {
+        const question = questionsById.get(response.questionId);
+        if (!question) {
+          throw AppError.badRequest(`Invalid question id for current lesson: ${response.questionId}`);
+        }
+
+        const expected = question.correctAnswer.trim().toLowerCase();
+        const actual = response.response.trim().toLowerCase();
+        const isCorrect = expected === actual;
+        if (isCorrect) {
+          correctAnswers += 1;
+        }
+
+        await tx.comprehensionResponse.create({
+          data: {
+            learnerId,
+            questionId: question.id,
+            response: response.response,
+            isCorrect,
+          },
+        });
+      }
+
+      const totalQuestions = Math.max(questions.length, 1);
+      const comprehensionScore = Math.round((correctAnswers / totalQuestions) * 10000) / 100;
+      const comprehensionPassedCount = correctAnswers;
+      const comprehensionPassed = comprehensionScore >= LessonSessionService.UNLOCK_THRESHOLD;
+
+      const totalExercises = wordCount * 2 + questions.length;
+      const passedExercises = fillGapPassedCount + pronunciationPassedCount + comprehensionPassedCount;
+      const passRate = totalExercises > 0 ? Math.round((passedExercises / totalExercises) * 10000) / 100 : 0;
+      lessonPassed = passRate >= LessonSessionService.UNLOCK_THRESHOLD;
+
+      const now = new Date();
+      const existingCompletedAt = targetProgress.completedAt;
+      const bestScore = targetProgress.bestCompScore
+        ? Number(targetProgress.bestCompScore)
+        : null;
+
+      const progressUpdate: Prisma.LearnerScenarioProgressUpdateInput = {
+        wordsCompleted: input.wordResults.length,
+        comprehensionPassed,
+        comprehensionScore,
+        wordMasteryLevel,
+        lessonMastered,
+        startedAt: targetProgress.startedAt ?? now,
+      };
+
+      if (isRetake) {
+        // Retakes always record the attempt; mastery fields already updated above
+        progressUpdate.timesCompleted = { increment: 1 };
+        progressUpdate.bestCompScore =
+          bestScore === null || comprehensionScore > bestScore ? comprehensionScore : bestScore;
+        progressUpdate.lastCompletedAt = now;
+      } else if (lessonPassed) {
+        progressUpdate.status = 'COMPLETED';
+        progressUpdate.timesCompleted = {
+          increment: 1,
+        };
+        progressUpdate.bestCompScore =
+          bestScore === null || comprehensionScore > bestScore ? comprehensionScore : bestScore;
+        progressUpdate.completedAt = existingCompletedAt ?? now;
+        progressUpdate.lastCompletedAt = now;
+
+        // XP is awarded once per lesson on first successful completion.
+        xpEarned = Math.round(passRate);
+        await tx.learningPath.update({
+          where: { id: pathId },
+          data: {
+            pathXp: {
+              increment: xpEarned,
+            },
+          },
+        });
+      } else {
+        progressUpdate.status = 'ACTIVE';
+      }
+
+      await tx.learnerScenarioProgress.update({
+        where: { id: targetProgress.id },
+        data: progressUpdate,
+      });
+
+      await tx.learnerScenarioProgress.updateMany({
+        where: {
+          learningPathId: pathId,
+          status: 'ACTIVE',
+          id: { not: targetProgress.id },
+        },
+        data: {
+          status: 'LOCKED',
+        },
+      });
+
+      // Retakes never unlock further lessons or complete the path
+      if (isRetake || !lessonPassed) {
+        return;
+      }
+
+      const currentSubcategoryId = targetProgress.lesson.subcategoryId;
+
+      let nextLesson = await tx.learnerScenarioProgress.findFirst({
+        where: {
+          learningPathId: pathId,
+          status: 'LOCKED',
+          lesson: {
+            subcategoryId: currentSubcategoryId,
+          },
+        },
+        include: {
+          lesson: {
+            include: {
+              subcategory: true,
+              words: true,
+            },
+          },
+        },
+        orderBy: [
+          { lesson: { scenarioPosition: 'asc' } },
+          { createdAt: 'asc' },
+        ],
+      });
+
+      let nextSubcategoryId = currentSubcategoryId;
+
+      // When current subcategory is exhausted, move to the next subcategory in rotated order.
+      if (!nextLesson) {
+        const remainingInCurrent = await tx.learnerScenarioProgress.count({
+          where: {
+            learningPathId: pathId,
+            lesson: {
+              subcategoryId: currentSubcategoryId,
+            },
+            status: { not: 'COMPLETED' },
+          },
+        });
+
+        if (remainingInCurrent === 0) {
+          await tx.subcategoryProgress.update({
+            where: {
+              learningPathId_subcategoryId: {
+                learningPathId: pathId,
+                subcategoryId: currentSubcategoryId,
+              },
+            },
+            data: {
+              status: 'COMPLETED',
+              completedAt: now,
+            },
+          });
+        }
+
+        const subcategoryRows = await tx.subcategoryProgress.findMany({
+          where: { learningPathId: pathId },
+          include: {
+            subcategory: {
+              select: {
+                position: true,
+              },
+            },
+          },
+        });
+
+        const rotated = this.rotateSubcategoryOrder(
+          subcategoryRows.map((row) => ({
+            subcategoryId: row.subcategoryId,
+            subcategoryPosition: row.subcategory.position,
+          })),
+          currentSubcategoryId,
+        );
+
+        for (const candidate of rotated) {
+          if (candidate.subcategoryId === currentSubcategoryId) {
+            continue;
+          }
+
+          const candidateLesson = await tx.learnerScenarioProgress.findFirst({
+            where: {
+              learningPathId: pathId,
+              status: 'LOCKED',
+              lesson: {
+                subcategoryId: candidate.subcategoryId,
+              },
+            },
+            include: {
+              lesson: {
+                include: {
+                  subcategory: true,
+                  words: true,
+                },
+              },
+            },
+            orderBy: [
+              { lesson: { scenarioPosition: 'asc' } },
+              { createdAt: 'asc' },
+            ],
+          });
+
+          if (candidateLesson) {
+            nextLesson = candidateLesson;
+            nextSubcategoryId = candidate.subcategoryId;
+            break;
+          }
+        }
+      }
+
+      if (nextLesson) {
+        unlockedNextLesson = true;
+        await tx.learnerScenarioProgress.update({
+          where: { id: nextLesson.id },
+          data: {
+            status: 'ACTIVE',
+            unlockedAt: now,
+          },
+        });
+
+        for (const word of nextLesson.lesson.words) {
+          await tx.learnerWordState.upsert({
+            where: {
+              learningPathId_scenarioWordId: {
+                learningPathId: pathId,
+                scenarioWordId: word.id,
+              },
+            },
+            update: {
+              status: 'ACTIVE',
+            },
+            create: {
+              learningPathId: pathId,
+              scenarioWordId: word.id,
+              status: 'ACTIVE',
+            },
+          });
+        }
+
+        nextSubcategoryId = nextLesson.lesson.subcategoryId;
+
+        await tx.learningPath.update({
+          where: { id: pathId },
+          data: {
+            currentScenarioId: nextLesson.lesson.scenarioId,
+            currentSubcategoryId: nextSubcategoryId,
+          },
+        });
+
+        if (currentSubcategoryId !== nextSubcategoryId) {
+          await tx.subcategoryProgress.update({
+            where: {
+              learningPathId_subcategoryId: {
+                learningPathId: pathId,
+                subcategoryId: nextSubcategoryId,
+              },
+            },
+            data: {
+              status: 'ACTIVE',
+              unlockedAt: now,
+              completedAt: null,
+            },
+          });
+        }
+      } else {
+        pathCompleted = true;
+        await tx.subcategoryProgress.update({
+          where: {
+            learningPathId_subcategoryId: {
+              learningPathId: pathId,
+              subcategoryId: targetProgress.lesson.subcategoryId,
+            },
+          },
+          data: {
+            status: 'COMPLETED',
+            completedAt: now,
+          },
+        });
+        await tx.learningPath.update({
+          where: { id: pathId },
+          data: {
+            status: 'COMPLETED',
+            completedAt: now,
+          },
+        });
+      }
     });
 
-    if (exercises.length === 0) {
-      return {
-        sessionId: `path:${pathId}:milestone:3`,
-        lessonType: 'PRONUNCIATION_MASTERY',
-        status: 'PREPARING',
-        ready: false,
-      };
+    await this.streakService.updateStreak(learnerId, new Date());
+
+    // Badge checks for lesson completion and XP (fire-and-forget)
+    if (lessonPassed && !isRetake) {
+      this.checkLessonBadges(learnerId, pathId, xpEarned).catch(() => undefined);
     }
 
+    const totalExercisesReturn = wordCount * 2 + questions.length;
+    const passRateExact = totalExercisesReturn > 0
+      ? Math.round(((fillGapPassedCount + pronunciationPassedCount + correctAnswers) / totalExercisesReturn) * 10000) / 100
+      : 0;
+
     return {
-      sessionId: `path:${pathId}:milestone:3`,
-      lessonType: 'PRONUNCIATION_MASTERY',
-      status: 'READY',
-      ready: true,
-      milestone: {
-        id: milestoneId,
-        milestoneNumber: 3,
-        type: 'PRONUNCIATION_MASTERY',
+      success: true,
+      lessonId: targetProgress.lessonId,
+      retake: isRetake,
+      lessonPassed,
+      unlockedNextLesson,
+      pathCompleted,
+      wordMasteryLevel,
+      lessonMastered,
+      xpEarned,
+      performance: {
+        totalExercises: totalExercisesReturn,
+        passedExercises: fillGapPassedCount + pronunciationPassedCount + correctAnswers,
+        passRate: passRateExact,
+        passRateExact,
+        passRateRounded: Math.round(passRateExact),
+        breakdown: {
+          fillGapPassedCount,
+          pronunciationPassedCount,
+          comprehensionPassedCount: correctAnswers,
+        },
+        thresholds: {
+          pronunciationPassThreshold: LessonSessionService.PRONUNCIATION_PASS_THRESHOLD,
+          unlockThreshold: LessonSessionService.UNLOCK_THRESHOLD,
+          wordMasteryThreshold: LessonSessionService.WORD_MASTERY_THRESHOLD,
+        },
       },
-      exercises: exercises.map((exercise) => ({
-        exerciseId: exercise.id,
-        targetText: exercise.targetText,
-        referenceAudioUrl: exercise.referenceAudioUrl,
-        complexityLevel: exercise.complexityLevel,
-        position: exercise.position,
-      })),
     };
   }
 
-  private async completeVocabularySprint(
+  async getScenarioLessonMap(pathId: string, learnerId: string): Promise<Record<string, unknown>> {
+    const path = await this.prisma.learningPath.findUnique({
+      where: { id: pathId },
+    });
+
+    if (!path) {
+      throw AppError.notFound('Learning path not found');
+    }
+
+    if (path.learnerId !== learnerId) {
+      throw AppError.forbidden('Not authorized');
+    }
+
+    const progressRows = await this.prisma.learnerScenarioProgress.findMany({
+      where: { learningPathId: pathId },
+      include: {
+        lesson: {
+          include: {
+            scenario: true,
+            subcategory: true,
+          },
+        },
+      },
+      orderBy: [
+        { lesson: { subcategory: { position: 'asc' } } },
+        { lesson: { scenarioPosition: 'asc' } },
+      ],
+    });
+
+    const grouped = new Map<string, {
+      subcategoryId: string;
+      subcategoryName: string;
+      subcategoryPosition: number;
+      lessons: Array<Record<string, unknown>>;
+    }>();
+
+    for (const row of progressRows) {
+      const key = row.lesson.subcategoryId;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          subcategoryId: row.lesson.subcategoryId,
+          subcategoryName: row.lesson.subcategory.name,
+          subcategoryPosition: row.lesson.subcategory.position,
+          lessons: [],
+        });
+      }
+
+      grouped.get(key)!.lessons.push({
+        lessonId: row.lessonId,
+        scenarioId: row.lesson.scenarioId,
+        scenarioName: row.lesson.scenario.displayName,
+        scenarioPosition: row.lesson.scenarioPosition,
+        status: row.status,
+        timesCompleted: row.timesCompleted,
+        bestComprehensionScore: row.bestCompScore ? Number(row.bestCompScore) : null,
+        wordMasteryLevel: Number(row.wordMasteryLevel),
+        lessonMastered: row.lessonMastered,
+        lastCompletedAt: row.lastCompletedAt,
+        unlockedAt: row.unlockedAt,
+      });
+    }
+
+    const effectiveCurrentSubcategoryId =
+      progressRows.find((row) => row.status === 'ACTIVE')?.lesson.subcategoryId ||
+      path.currentSubcategoryId;
+
+    const subcategories = this.rotateSubcategoryOrder(
+      Array.from(grouped.values()),
+      effectiveCurrentSubcategoryId,
+    );
+
+    const totalLessons = progressRows.length;
+    const completedLessons = progressRows.filter((row) => row.status === 'COMPLETED').length;
+    const activeLessons = progressRows.filter((row) => row.status === 'ACTIVE').length;
+    const lockedLessons = progressRows.filter((row) => row.status === 'LOCKED').length;
+    const masteredLessons = progressRows.filter((row) => row.lessonMastered).length;
+
+    return {
+      pathId,
+      summary: {
+        totalLessons,
+        completedLessons,
+        masteredLessons,
+        activeLessons,
+        lockedLessons,
+      },
+      subcategories,
+    };
+  }
+
+  async startScenarioRetake(
     pathId: string,
     learnerId: string,
-    wordResults: Array<{
-      wordId: string;
-      meaningAccuracy?: number;
-      usageAccuracy?: number;
-      pronunciationScore?: number;
-      responseTime?: number;
-    }>,
-  ) {
-    const updatedWords = [] as Array<Record<string, unknown>>;
-
-    for (const result of wordResults) {
-      const usageScores = [result.meaningAccuracy, result.usageAccuracy].filter(
-        (value): value is number => typeof value === 'number',
-      );
-      const effectiveUsageAccuracy =
-        usageScores.length > 0
-          ? Math.round((usageScores.reduce((sum, value) => sum + value, 0) / usageScores.length) * 100) / 100
-          : undefined;
-
-      const updated = await this.progressService.recordAttempt({
-        wordId: result.wordId,
-        learningPathId: pathId,
-        usageAccuracy: effectiveUsageAccuracy,
-        pronunciationScore: result.pronunciationScore,
-        responseTime: result.responseTime,
-      });
-
-      updatedWords.push({
-        wordId: result.wordId,
-        masteryScore: Number(updated.masteryScore),
-        status: updated.status,
-        attemptCount: updated.attemptCount,
-      });
-    }
-
-    await this.ensureComprehensionPreparation(pathId, learnerId);
-
-    const [progress, nextSession] = await Promise.all([
-      this.progressService.getMilestoneProgress(pathId, 1),
-      this.getCurrentSession(pathId, learnerId),
-    ]);
-
-    return {
-      lessonType: 'VOCABULARY_SPRINT',
-      completedWords: updatedWords,
-      progress,
-      nextSession,
-    };
-  }
-
-  private async ensureComprehensionPreparation(pathId: string, learnerId: string): Promise<void> {
+    lessonId: string,
+  ): Promise<Record<string, unknown>> {
     const path = await this.prisma.learningPath.findUnique({
       where: { id: pathId },
       include: { learner: true },
     });
 
-    if (!path || path.currentMilestone !== 2) {
-      return;
+    if (!path) {
+      throw AppError.notFound('Learning path not found');
     }
 
-    const milestone2 = await this.prisma.milestone.findUnique({
+    if (path.learnerId !== learnerId) {
+      throw AppError.forbidden('Not authorized');
+    }
+
+    if (!path.professionId) {
+      throw AppError.badRequest('Learning path is missing profession reference');
+    }
+
+    const lessonProgress = await this.prisma.learnerScenarioProgress.findUnique({
       where: {
-        learningPathId_milestoneNumber: {
+        learningPathId_lessonId: {
           learningPathId: pathId,
-          milestoneNumber: 2,
+          lessonId,
         },
       },
-      select: { id: true },
-    });
-
-    if (!milestone2) {
-      return;
-    }
-
-    const existingStory = await this.prisma.story.findUnique({
-      where: { milestoneId: milestone2.id },
-      select: { id: true },
-    });
-
-    if (existingStory) {
-      return;
-    }
-
-    const vocabulary = await this.prisma.learnerWordState.findMany({
-      where: { learningPathId: pathId },
       include: {
-        word: {
+        lesson: {
           include: {
-            translations: {
-              where: { baseLanguage: path.learner.baseLanguage },
-            },
+            words: true,
           },
         },
       },
-      take: 12,
     });
 
-    await this.aiService.queueGenerateStory({
+    if (!lessonProgress) {
+      throw AppError.notFound('Lesson progress not found');
+    }
+
+    if (lessonProgress.status !== 'COMPLETED') {
+      throw AppError.badRequest('Only completed lessons can be retaken');
+    }
+
+    // Retake should not reset learned state. Completion flow applies sticky-only upgrades,
+    // so repeated attempts can improve mastery without losing previously earned progress.
+
+    const lesson = await this.getPublishedLessonById(lessonId);
+
+    const sessionPayload = await this.contentService.buildSessionPayload({
+      pathId,
+      lesson,
+      baseLanguage: path.learner.baseLanguage,
+    });
+
+    return {
+      ...sessionPayload,
+      retake: true,
+      lessonId,
+    };
+  }
+
+  private async checkLessonBadges(learnerId: string, pathId: string, xpEarned: number): Promise<void> {
+    const [totalCompleted, path] = await Promise.all([
+      this.prisma.learnerScenarioProgress.count({
+        where: { learningPathId: pathId, status: 'COMPLETED' },
+      }),
+      this.prisma.learningPath.findUnique({
+        where: { id: pathId },
+        select: { pathXp: true },
+      }),
+    ]);
+
+    await this.badgeService.checkAndAwardBadges({
+      type: 'LESSON_COMPLETED',
       learnerId,
-      milestoneId: milestone2.id,
-      profession: path.profession,
-      language: path.language,
-      vocabulary: vocabulary.map((item) => ({
-        word: item.word.word,
-        translation:
-          item.word.translations.length > 0 ? item.word.translations[0].translation : item.word.word,
-      })),
-    });
-  }
-
-  private async completeComprehension(
-    pathId: string,
-    learnerId: string,
-    questionResponses: Array<{ questionId: string; response: string }>,
-  ) {
-    const milestone = await this.prisma.milestone.findUnique({
-      where: {
-        learningPathId_milestoneNumber: {
-          learningPathId: pathId,
-          milestoneNumber: 2,
-        },
-      },
-      select: { id: true },
+      totalLessonsCompleted: totalCompleted,
     });
 
-    if (!milestone) {
-      throw AppError.notFound('Comprehension milestone not found');
-    }
-
-    const story = await this.prisma.story.findUnique({
-      where: { milestoneId: milestone.id },
-      include: { questions: true },
-    });
-
-    if (!story) {
-      throw AppError.notFound('Comprehension story not ready');
-    }
-
-    const questionMap = new Map(story.questions.map((question) => [question.id, question]));
-    const storedResponses = [] as Array<Record<string, unknown>>;
-
-    for (const item of questionResponses) {
-      const question = questionMap.get(item.questionId);
-      if (!question) {
-        throw AppError.notFound(`Question not found: ${item.questionId}`);
-      }
-
-      const isCorrect = this.normalizeText(question.correctAnswer) === this.normalizeText(item.response);
-      const stored = await this.prisma.comprehensionResponse.create({
-        data: {
-          questionId: question.id,
-          learnerId,
-          response: item.response,
-          isCorrect,
-        },
-      });
-
-      storedResponses.push({
-        responseId: stored.id,
-        questionId: question.id,
-        isCorrect,
-      });
-    }
-
-    const answeredQuestionIds = new Set(questionResponses.map((item) => item.questionId));
-    const allCorrect =
-      story.questions.length > 0 &&
-      story.questions.every(
-        (question) =>
-          answeredQuestionIds.has(question.id) &&
-          this.normalizeText(question.correctAnswer) ===
-            this.normalizeText(
-              questionResponses.find((item) => item.questionId === question.id)?.response || '',
-            ),
-      );
-
-    let nextMilestoneQueuedJobId: string | undefined;
-    if (allCorrect) {
-      const advancement = await this.learningService.advanceToNextMilestone(pathId);
-      const path = await this.prisma.learningPath.findUnique({
-        where: { id: pathId },
-        include: { learner: true },
-      });
-
-      if (advancement.nextMilestone && path) {
-        const vocabulary = await this.prisma.learnerWordState.findMany({
-          where: { learningPathId: pathId },
-          include: {
-            word: {
-              include: {
-                translations: {
-                  where: { baseLanguage: path.learner.baseLanguage },
-                },
-              },
-            },
-          },
-          take: 12,
-        });
-
-        const storyJob = await this.aiService.queueGenerateExercises({
-          learnerId,
-          milestoneId: advancement.nextMilestone.id,
-          language: path.language,
-          profession: path.profession,
-          vocabulary: vocabulary.map((item) => item.word.word),
-        });
-        nextMilestoneQueuedJobId = storyJob.jobId;
-      }
-    }
-
-    const nextSession = await this.getCurrentSession(pathId, learnerId);
-
-    return {
-      lessonType: 'COMPREHENSION',
-      allCorrect,
-      responses: storedResponses,
-      nextMilestoneQueuedJobId,
-      nextSession,
-    };
-  }
-
-  private async completePronunciationMastery(
-    pathId: string,
-    learnerId: string,
-    pronunciationResults: Array<{
-      exerciseId: string;
-      recordedAudioUrl: string;
-      externalAccuracyScore?: number;
-      transcript?: string;
-    }>,
-  ) {
-    const exercises = await this.prisma.pronunciationExercise.findMany({
-      where: {
-        milestone: {
-          learningPathId: pathId,
-          milestoneNumber: 3,
-        },
-      },
-      include: {
-        milestone: true,
-      },
-    });
-
-    const exerciseMap = new Map(exercises.map((exercise) => [exercise.id, exercise]));
-    const attempts = [] as Array<Record<string, unknown>>;
-
-    for (const item of pronunciationResults) {
-      const exercise = exerciseMap.get(item.exerciseId);
-      if (!exercise) {
-        throw AppError.notFound(`Pronunciation exercise not found: ${item.exerciseId}`);
-      }
-
-      const score100 =
-        typeof item.externalAccuracyScore === 'number'
-          ? item.externalAccuracyScore
-          : this.computeTranscriptAccuracy(exercise.targetText, item.transcript || '');
-
-      const attempt = await this.pronunciationService.recordAttempt({
-        exerciseId: exercise.id,
+    if (xpEarned > 0 && path) {
+      await this.badgeService.checkAndAwardBadges({
+        type: 'XP_EARNED',
         learnerId,
-        recordedAudioUrl: item.recordedAudioUrl,
-        accuracyScore: score100,
-      });
-
-      attempts.push({
-        exerciseId: exercise.id,
-        accuracyScore: Number(attempt.accuracyScore),
-        passed: attempt.passed,
+        totalXp: path.pathXp,
       });
     }
-
-    const progress = await this.pronunciationService.getMilestoneProgress(exercises[0]?.milestoneId || '');
-
-    let subcategoryCompleted = false;
-    let nextSubcategory: {
-      id: string;
-      name: string;
-      position: number;
-      status: 'PREPARING';
-    } | null = null;
-    let courseCompleted = false;
-
-    if (exercises[0] && progress.isComplete) {
-      const completionResult = await this.completeCurrentSubcategory(pathId);
-      subcategoryCompleted = completionResult.subcategoryCompleted;
-      nextSubcategory = completionResult.nextSubcategory;
-      courseCompleted = completionResult.courseCompleted;
-    }
-
-    return {
-      lessonType: 'PRONUNCIATION_MASTERY',
-      attempts,
-      progress,
-      subcategoryCompleted,
-      nextSubcategory,
-      courseCompleted,
-    };
-  }
-
-  /**
-   * Completes the current subcategory and prepares the next one.
-   * If there are no more subcategories, completes the learning path.
-   */
-  private async completeCurrentSubcategory(pathId: string): Promise<{
-    subcategoryCompleted: boolean;
-    nextSubcategory: {
-      id: string;
-      name: string;
-      position: number;
-      status: 'PREPARING';
-    } | null;
-    courseCompleted: boolean;
-  }> {
-    const completedAt = new Date();
-
-    const result = await this.prisma.$transaction(async (tx: any) => {
-      const path = await tx.learningPath.findUnique({
-        where: { id: pathId },
-        include: { learner: true },
-      });
-
-      if (!path) {
-        throw AppError.notFound('Learning path not found');
-      }
-
-      await tx.milestone.update({
-        where: {
-          learningPathId_milestoneNumber: {
-            learningPathId: pathId,
-            milestoneNumber: 3,
-          },
-        },
-        data: {
-          status: 'COMPLETED',
-          completedAt,
-        },
-      });
-
-      // Mark all subcategories as fully compiled milestone-wise just in case
-      await tx.subcategoryProgress.updateMany({
-        where: { learningPathId: pathId },
-        data: {
-          status: 'COMPLETED',
-          completedAt,
-          milestonesCompleted: 3,
-        },
-      });
-
-      await tx.learningPath.update({
-        where: { id: pathId },
-        data: {
-          status: 'COMPLETED',
-          completedAt,
-        },
-      });
-
-      return {
-        path,
-        nextSubcategory: null,
-        courseCompleted: true,
-      };
-    });
-
-    return {
-      subcategoryCompleted: true,
-      nextSubcategory: result.nextSubcategory,
-      courseCompleted: result.courseCompleted,
-    };
-  }
-
-  private buildVocabularySprintSteps(
-    words: Array<{
-      wordId: string;
-      text: string;
-      translation: string | null;
-      pronunciationAudioUrl: string;
-      exampleSentences: string[];
-    }>,
-  ) {
-    const steps = [] as Array<Record<string, unknown>>;
-
-    words.forEach((word, index) => {
-      steps.push({
-        stepId: `${word.wordId}:intro`,
-        type: 'INTRODUCE_WORD',
-        wordId: word.wordId,
-        prompt: `Learn the word ${word.text}`,
-        audioUrl: word.pronunciationAudioUrl,
-        order: steps.length + 1,
-      });
-
-      steps.push({
-        stepId: `${word.wordId}:pronounce`,
-        type: 'PRONOUNCE_WORD',
-        wordId: word.wordId,
-        prompt: `Pronounce ${word.text}`,
-        audioUrl: word.pronunciationAudioUrl,
-        order: steps.length + 1,
-      });
-
-      const usageSentence = word.exampleSentences[index % Math.max(word.exampleSentences.length, 1)] || '';
-      steps.push({
-        stepId: `${word.wordId}:usage`,
-        type: 'USE_IN_SENTENCE',
-        wordId: word.wordId,
-        prompt: usageSentence || `Use ${word.text} in context`,
-        order: steps.length + 1,
-      });
-    });
-
-    return steps;
-  }
-
-  private async ensureWordAudio(wordId: string, language: string, word: string): Promise<string> {
-    const cached = await this.pronunciationService.getCachedAudio(wordId, language);
-    if (cached) {
-      return cached.audioUrl;
-    }
-
-    try {
-      const generatedAudioDataUri = await this.elevenLabsClient.generateSpeech(word);
-      if (!generatedAudioDataUri) {
-        return '';
-      }
-
-      const uploadedAudio = await this.cloudinaryService.uploadAudioDataUri(
-        generatedAudioDataUri,
-        'coach-plingo/pronunciation',
-      );
-
-      const saved = await this.pronunciationService.cacheAudio({
-        wordId,
-        language,
-        audioUrl: uploadedAudio.secureUrl,
-      });
-
-      return saved.audioUrl;
-    } catch (error) {
-      this.logger.warn(`Audio generation unavailable for word ${wordId} (${language})`, error);
-      return '';
-    }
-  }
-
-  private asStringArray(value: unknown): string[] {
-    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
-  }
-
-  private normalizeText(value: string): string {
-    return value.toLowerCase().trim().replace(/\s+/g, ' ');
-  }
-
-  private computeTranscriptAccuracy(targetText: string, transcript: string): number {
-    const normalizedTarget = this.normalizeText(targetText).replace(/[^a-z0-9\s]/gi, ' ');
-    const normalizedTranscript = this.normalizeText(transcript).replace(/[^a-z0-9\s]/gi, ' ');
-
-    if (!normalizedTarget || !normalizedTranscript) {
-      return 0;
-    }
-
-    const distance = this.levenshtein(normalizedTarget, normalizedTranscript);
-    const maxLen = Math.max(normalizedTarget.length, normalizedTranscript.length);
-    const similarity = maxLen > 0 ? 1 - distance / maxLen : 0;
-
-    return Math.round(Math.max(0, Math.min(1, similarity)) * 10000) / 100;
-  }
-
-  private levenshtein(a: string, b: string): number {
-    const matrix = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
-
-    for (let i = 0; i <= a.length; i += 1) matrix[i][0] = i;
-    for (let j = 0; j <= b.length; j += 1) matrix[0][j] = j;
-
-    for (let i = 1; i <= a.length; i += 1) {
-      for (let j = 1; j <= b.length; j += 1) {
-        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j - 1] + cost,
-        );
-      }
-    }
-
-    return matrix[a.length][b.length];
   }
 }

@@ -21,6 +21,7 @@ export interface GeneratedStoryContent {
 
 export interface GeneratedPronunciationExercise {
   targetText: string;
+  spokenForm?: string;
   complexityLevel: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
   position: number;
 }
@@ -115,29 +116,61 @@ function getLanguageAwareTemplates(
 
 import { SentenceExample } from '../services/VocabularyService';
 
-function buildExamples(word: string, translation: string): {
-  examplePhrases: SentenceExample[];
+function buildExamples(
+  word: string,
+  translation: string,
+  language: string,
+  profession: string,
+): {
   exampleSentences: SentenceExample[];
 } {
+  const normalizedLanguage = language.trim().toLowerCase();
+  const normalizedProfession = profession.trim().toLowerCase();
+
+  const sentencePairsByLanguage: Record<string, { op: string; interaction: string }> = {
+    es: {
+      op: `Actualiza ${word} en el turno de hoy.`,
+      interaction: `¿Puedes confirmar ${word} antes del pase?`,
+    },
+    de: {
+      op: `Aktualisiere ${word} fuer die heutige Schicht.`,
+      interaction: `Kannst du ${word} vor der Uebergabe bestaetigen?`,
+    },
+    fr: {
+      op: `Mets a jour ${word} pour ce service.`,
+      interaction: `Peux-tu confirmer ${word} avant la transmission?`,
+    },
+  };
+
+  const professionCue = normalizedProfession.includes('health')
+    ? 'patient handoff'
+    : normalizedProfession.includes('engineer')
+      ? 'deployment review'
+      : normalizedProfession.includes('hospitality')
+        ? 'guest service'
+        : 'team operations';
+
+  const templates = sentencePairsByLanguage[normalizedLanguage] || {
+    op: `Update ${word} for this ${professionCue}.`,
+    interaction: `Can you confirm ${word} before handoff?`,
+  };
+
   return {
-    examplePhrases: [
-      {
-        text: `${word} esencial`,
-        translation: `essential ${translation}`,
-        keywords: [
-          { word, translation, pronunciation: `/${word}/` },
-          { word: 'esencial', translation: 'essential', pronunciation: '/e.sen.sial/' }
-        ]
-      }
-    ],
     exampleSentences: [
       {
-        text: `Usamos ${word} cada día.`,
-        translation: `We use ${translation} every day.`,
+        text: templates.op,
+        translation: `Update ${translation} for this ${professionCue}.`,
         keywords: [
-          { word, translation, pronunciation: `/${word}/` }
-        ]
-      }
+          { word, translation, pronunciation: `/${word}/` },
+        ],
+      },
+      {
+        text: templates.interaction,
+        translation: `Can you confirm ${translation} before handoff?`,
+        keywords: [
+          { word, translation, pronunciation: `/${word}/` },
+        ],
+      },
     ],
   };
 }
@@ -160,13 +193,12 @@ export function generateFallbackLessonWords(input: {
     const candidateWord = `${template.word}${suffix}`;
 
     if (!excluded.has(candidateWord.toLowerCase())) {
-      const examples = buildExamples(candidateWord, template.translation);
+      const examples = buildExamples(candidateWord, template.translation, input.language, input.profession);
       results.push({
         word: candidateWord,
         translation: `${template.translation}${suffix}`,
         subcategory: input.subcategory,
         complexityLevel: results.length < Math.ceil(input.count * 0.7) ? 'BEGINNER' : 'INTERMEDIATE',
-        examplePhrases: examples.examplePhrases,
         exampleSentences: examples.exampleSentences,
         tags: template.tags,
       });
@@ -220,6 +252,7 @@ export function generateFallbackPronunciationExercises(input: {
 }): GeneratedPronunciationExercise[] {
   return input.vocabulary.slice(0, 5).map((word, index) => ({
     targetText: `Repito ${word} con claridad para una situación de ${input.profession}.`,
+    spokenForm: `Repito ${word} con claridad para una situación de ${input.profession}.`,
     complexityLevel: index < 3 ? 'BEGINNER' : 'INTERMEDIATE',
     position: index + 1,
   }));

@@ -246,4 +246,36 @@ export class ProgressController {
       next(error);
     }
   }
+
+  /**
+   * GET /progress/leaderboard/:pathId
+   * Get leaderboard for learners on the same path track (language + profession)
+   */
+  async getPathLeaderboard(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { pathId } = req.params;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 25;
+
+      const path = await this.prisma.learningPath.findUnique({
+        where: { id: pathId },
+      });
+
+      if (!path) {
+        throw AppError.notFound('Learning path not found');
+      }
+
+      if (path.learnerId !== req.learnerId) {
+        throw AppError.forbidden('Not authorized');
+      }
+
+      const leaderboard = await this.progressService.getPathLeaderboard(pathId, req.learnerId!, limit);
+
+      res.json({
+        success: true,
+        data: leaderboard,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

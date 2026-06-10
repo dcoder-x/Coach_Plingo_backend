@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { AIService, GenerateExercisesJobPayload } from '../../services/AIService';
 import { NotificationService } from '../../services/NotificationService';
+import { CloudinaryService } from '../../services/CloudinaryService';
 import { ClaudeClient } from '../clients/ClaudeClient';
 import { ElevenLabsClient } from '../clients/ElevenLabsClient';
 import { SimpleLogger } from '../../utils/Logger';
@@ -8,6 +9,7 @@ import { SimpleLogger } from '../../utils/Logger';
 export class GenerateExercisesHandler {
   private readonly aiService: AIService;
   private readonly notificationService: NotificationService;
+  private readonly cloudinaryService: CloudinaryService;
   private readonly claudeClient: ClaudeClient;
   private readonly elevenLabsClient: ElevenLabsClient;
   private readonly logger: SimpleLogger;
@@ -15,6 +17,7 @@ export class GenerateExercisesHandler {
   constructor(private readonly prisma: PrismaClient) {
     this.aiService = new AIService(prisma);
     this.notificationService = new NotificationService(prisma);
+    this.cloudinaryService = new CloudinaryService();
     this.claudeClient = new ClaudeClient();
     this.elevenLabsClient = new ElevenLabsClient();
     this.logger = new SimpleLogger('GenerateExercisesHandler');
@@ -26,7 +29,8 @@ export class GenerateExercisesHandler {
     try {
       const exercises = await this.claudeClient.generatePronunciationExercises({
         profession: payload.profession,
-        language: payload.language,
+        targetLanguage: payload.language,
+        sourceLanguage: payload.baseLanguage,
         vocabulary: payload.vocabulary,
       });
 
@@ -36,13 +40,27 @@ export class GenerateExercisesHandler {
 
       const createdExercises = [] as Array<{ id: string; targetText: string }>;
 
+      const ttsVoiceId = await ElevenLabsClient.resolveVoiceId(this.prisma, payload.language);
+
       for (const exercise of exercises) {
-        const referenceAudioUrl = await this.elevenLabsClient.generateSpeech(exercise.targetText);
+        const speechText = exercise.spokenForm?.trim() || exercise.targetText;
+        const generatedAudioDataUri = await this.elevenLabsClient.generateSpeech(speechText, payload.language, {
+          voiceId: ttsVoiceId,
+        });
+        if (!generatedAudioDataUri) {
+          throw new Error(`Failed to generate pronunciation exercise audio for text: ${speechText}`);
+        }
+
+        const uploadedAudio = await this.cloudinaryService.uploadAudioDataUri(
+          generatedAudioDataUri,
+          `coach-plingo/pronunciation/exercises/${payload.language}`,
+        );
+
         const created = await this.prisma.pronunciationExercise.create({
           data: {
             milestoneId: payload.milestoneId,
             targetText: exercise.targetText,
-            referenceAudioUrl,
+            referenceAudioUrl: uploadedAudio.secureUrl,
             complexityLevel: exercise.complexityLevel,
             position: exercise.position,
           },
