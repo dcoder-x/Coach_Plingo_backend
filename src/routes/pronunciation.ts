@@ -1,14 +1,13 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import multer from 'multer';
 import { PronunciationController } from '../controllers/PronunciationController';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { uploadAudio } from '../middleware/upload';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 const controller = new PronunciationController(prisma);
 const upload = multer({ storage: multer.memoryStorage() });
 

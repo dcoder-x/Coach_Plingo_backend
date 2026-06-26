@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import passport from 'passport';
 import { AuthController } from '../controllers/AuthController';
 import { authenticateOnboardingToken, authenticateToken } from '../middleware/auth';
@@ -25,8 +24,9 @@ import {
 } from '../services/UserService';
 import { GoogleOAuthProfilePayload } from '../config/passport';
 
+import prisma from '../lib/prisma';
+
 const router = Router();
-const prisma = new PrismaClient();
 const controller = new AuthController(prisma);
 
 /**

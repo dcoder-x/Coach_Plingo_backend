@@ -1,12 +1,11 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { NotificationController } from '../controllers/NotificationController';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { z } from 'zod';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 const controller = new NotificationController(prisma);
 
 // Param validators
@@ -77,17 +76,6 @@ router.put(
 );
 
 /**
- * DELETE /notifications/:id
- * Delete notification
- */
-router.delete(
-  '/:id',
-  authenticateToken,
-  validate({ params: notificationIdSchema }),
-  (req, res, next) => controller.deleteNotification(req, res, next),
-);
-
-/**
  * POST /notifications/push-token
  * Register or update the learner's Expo push token
  */
@@ -106,6 +94,17 @@ router.delete(
   '/push-token',
   authenticateToken,
   (req, res, next) => controller.removePushToken(req, res, next),
+);
+
+/**
+ * DELETE /notifications/:id
+ * Delete notification
+ */
+router.delete(
+  '/:id',
+  authenticateToken,
+  validate({ params: notificationIdSchema }),
+  (req, res, next) => controller.deleteNotification(req, res, next),
 );
 
 /**

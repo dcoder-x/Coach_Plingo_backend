@@ -334,7 +334,7 @@ export class LearningService {
       }
 
       return { path, selectedSubcategory, subcategoryTotal: subcategories.length };
-    });
+    }, { timeout: 30_000 });
 
     this.logger.info(
       `Created learning path for learner ${learnerId}: ${input.language} (${input.profession})`,

@@ -148,10 +148,12 @@ export class PronunciationController {
           vocabularyWord.examplePhrases,
           vocabularyWord.exampleSentences,
         );
-        const ttsVoiceId = await ElevenLabsClient.resolveVoiceId(this.prisma, language);
+        const { voiceId: ttsVoiceId, dictionaryId: ttsDictionaryId } =
+          await ElevenLabsClient.resolveVoiceConfig(this.prisma, language);
         const generatedAudioDataUri = await this.elevenLabsClient.generateSpeech(vocabularyWord.word, language, {
           singleWordMode: true,
           voiceId: ttsVoiceId,
+          pronunciationDictionaryId: ttsDictionaryId ?? undefined,
         });
         const uploadedAudio = await this.cloudinaryService.uploadAudioDataUri(
           generatedAudioDataUri,
@@ -221,11 +223,13 @@ export class PronunciationController {
         scenarioWord!.examplePhrases,
         scenarioWord!.exampleSentences,
       );
-      const ttsVoiceId = await ElevenLabsClient.resolveVoiceId(this.prisma, language);
+      const { voiceId: ttsVoiceId, dictionaryId: ttsDictionaryId } =
+        await ElevenLabsClient.resolveVoiceConfig(this.prisma, language);
       const generatedScenarioAudioDataUri = await this.elevenLabsClient.generateSpeech(scenarioWord!.word, language, {
         singleWordMode: true,
         voiceId: ttsVoiceId,
         ipa: scenarioWord!.ipa ?? undefined,
+        pronunciationDictionaryId: ttsDictionaryId ?? undefined,
       });
       const uploadedScenarioAudio = await this.cloudinaryService.uploadAudioDataUri(
         generatedScenarioAudioDataUri,

@@ -1,8 +1,6 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AdminMetricsController } from '../../controllers/AdminMetricsController';
-
-const prisma = new PrismaClient();
+import prisma from '../../lib/prisma';
 
 export function createMetricsRouter(): Router {
   const router = Router();

@@ -19,9 +19,9 @@ export interface ElevenLabsSpeechOptions {
   singleWordMode?: boolean;
   // Override the instance-level voice ID for this call (e.g. language-specific voice from DB).
   voiceId?: string;
-  // IPA transcription for the text. When provided, wraps the text in a <phoneme> SSML tag so
-  // ElevenLabs pronounces loanwords with target-language phonetics rather than English defaults.
   ipa?: string;
+  // ElevenLabs pronunciation dictionary ID to attach to this TTS call.
+  pronunciationDictionaryId?: string;
 }
 
 type ElevenLabsVoiceSettings = {
@@ -43,15 +43,19 @@ export class ElevenLabsClient {
   private static waitQueue: Array<() => void> = [];
   private static lastRateLimitLogAt = 0;
 
-  // Looks up the language-specific ElevenLabs voice ID seeded in LanguageOption.
-  // Returns undefined when the row has no ttsVoiceId, letting call sites fall back to
-  // the instance default (ELEVENLABS_VOICE_ID env var).
-  static async resolveVoiceId(prisma: PrismaClient, languageCode: string): Promise<string | undefined> {
+  // Looks up the language-specific ElevenLabs voice ID and pronunciation dictionary ID.
+  static async resolveVoiceConfig(
+    prisma: PrismaClient,
+    languageCode: string,
+  ): Promise<{ voiceId: string | undefined; dictionaryId: string | null }> {
     const lang = await prisma.languageOption.findUnique({
       where: { code: languageCode },
-      select: { ttsVoiceId: true },
+      select: { ttsVoiceId: true, ttsDictionaryId: true },
     });
-    return lang?.ttsVoiceId ?? undefined;
+    return {
+      voiceId: lang?.ttsVoiceId ?? undefined,
+      dictionaryId: lang?.ttsDictionaryId ?? null,
+    };
   }
 
   constructor() {
@@ -90,6 +94,12 @@ export class ElevenLabsClient {
       };
       if (languageCode) {
         body.language_code = languageCode;
+      }
+
+      if (options?.pronunciationDictionaryId) {
+        body.pronunciation_dictionary_locators = [
+          { pronunciation_dictionary_id: options.pronunciationDictionaryId },
+        ];
       }
 
       if (options?.singleWordMode) {
@@ -210,14 +220,82 @@ export class ElevenLabsClient {
     }
   }
 
-  // When IPA is available, wrap the text in a <phoneme> SSML tag so ElevenLabs uses the
-  // exact target-language phonetics instead of guessing from the ASCII spelling.
-  private buildSpeechText(text: string, ipa?: string): string {
-    const input = String(text || '').trim();
-    if (!input || !ipa?.trim()) {
-      return input;
+  // Upserts word→IPA rules into a per-language pronunciation dictionary.
+  // Creates the dictionary on first call and returns the dictionary ID.
+  // The ID should be persisted to LanguageOption.ttsDictionaryId so subsequent
+  // calls reuse the same dictionary rather than creating new ones.
+  async upsertPronunciationEntries(
+    entries: Array<{ word: string; ipa: string }>,
+    existingDictionaryId: string | null,
+    languageCode: string,
+  ): Promise<string | null> {
+    if (!this.hasConfiguredKey() || entries.length === 0) {
+      return existingDictionaryId;
     }
-    return `<phoneme alphabet="ipa" ph="${ipa.trim()}">${input}</phoneme>`;
+
+    try {
+      let dictionaryId = existingDictionaryId;
+
+      if (!dictionaryId) {
+        // ElevenLabs only supports dictionary creation via PLS file upload.
+        // We seed it with the first entry so the file is valid.
+        const firstEntry = entries[0];
+        const cleanIpa = firstEntry.ipa.replace(/^\/|\/$/g, '').trim();
+        const plsXml = `<?xml version="1.0" encoding="UTF-8"?>
+<lexicon version="1.0" xmlns="http://www.w3.org/2005/01/pronunciation-lexicon" alphabet="ipa" xml:lang="${languageCode}">
+  <lexeme>
+    <grapheme>${firstEntry.word}</grapheme>
+    <phoneme>${cleanIpa}</phoneme>
+  </lexeme>
+</lexicon>`;
+        const form = new FormData();
+        form.append('name', `coachplingo_${languageCode}`);
+        form.append('file', Buffer.from(plsXml, 'utf8'), {
+          filename: `coachplingo_${languageCode}.pls`,
+          contentType: 'application/pls+xml',
+        });
+        const createRes = await axios.post(
+          'https://api.elevenlabs.io/v1/pronunciation-dictionaries/add-from-file',
+          form,
+          {
+            headers: { 'xi-api-key': this.apiKey, ...form.getHeaders() },
+            timeout: 15000,
+          },
+        );
+        dictionaryId = (createRes.data as { id: string }).id;
+        this.logger.info(`Created ElevenLabs pronunciation dictionary for ${languageCode}: ${dictionaryId}`);
+      }
+
+      // Strip surrounding slashes from IPA (e.g. /ˈtɛstˌfaːzə/ → ˈtɛstˌfaːzə)
+      const rules = entries.map(({ word, ipa }) => ({
+        type: 'phoneme',
+        string_to_replace: word,
+        phoneme: ipa.replace(/^\/|\/$/g, '').trim(),
+        alphabet: 'ipa',
+      }));
+
+      await axios.post(
+        `https://api.elevenlabs.io/v1/pronunciation-dictionaries/${dictionaryId}/add-rules`,
+        { rules },
+        {
+          headers: { 'xi-api-key': this.apiKey, 'Content-Type': 'application/json' },
+          timeout: 15000,
+        },
+      );
+
+      this.logger.info(`Upserted ${entries.length} pronunciation rules into dictionary ${dictionaryId} for ${languageCode}`);
+      return dictionaryId;
+    } catch (error) {
+      const details = this.extractErrorDetails(error);
+      this.logger.warn(
+        `Failed to upsert pronunciation dictionary for ${languageCode}. status=${details.status || 'unknown'} message=${details.message || 'unknown'}`,
+      );
+      return existingDictionaryId;
+    }
+  }
+
+  private buildSpeechText(text: string, _ipa?: string): string {
+    return String(text || '').trim();
   }
 
   private async acquireSlot(): Promise<() => void> {

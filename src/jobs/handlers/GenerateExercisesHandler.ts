@@ -40,12 +40,14 @@ export class GenerateExercisesHandler {
 
       const createdExercises = [] as Array<{ id: string; targetText: string }>;
 
-      const ttsVoiceId = await ElevenLabsClient.resolveVoiceId(this.prisma, payload.language);
+      const { voiceId: ttsVoiceId, dictionaryId: ttsDictionaryId } =
+        await ElevenLabsClient.resolveVoiceConfig(this.prisma, payload.language);
 
       for (const exercise of exercises) {
         const speechText = exercise.spokenForm?.trim() || exercise.targetText;
         const generatedAudioDataUri = await this.elevenLabsClient.generateSpeech(speechText, payload.language, {
           voiceId: ttsVoiceId,
+          pronunciationDictionaryId: ttsDictionaryId ?? undefined,
         });
         if (!generatedAudioDataUri) {
           throw new Error(`Failed to generate pronunciation exercise audio for text: ${speechText}`);
