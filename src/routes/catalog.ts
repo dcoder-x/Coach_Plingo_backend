@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { CatalogController } from '../controllers/CatalogController';
 import { authenticateToken } from '../middleware/auth';
@@ -11,9 +10,9 @@ import {
   updateProfessionSchema,
   includeInactiveQuerySchema,
 } from '../services/CatalogService';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 const controller = new CatalogController(prisma);
 
 const idParamSchema = z.object({

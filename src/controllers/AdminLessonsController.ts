@@ -186,11 +186,13 @@ export class AdminLessonsController {
     });
     if (!word) throw AppError.notFound('Word not found');
 
-    const ttsVoiceId = await ElevenLabsClient.resolveVoiceId(this.prisma, lesson.language);
+    const { voiceId: ttsVoiceId, dictionaryId: ttsDictionaryId } =
+      await ElevenLabsClient.resolveVoiceConfig(this.prisma, lesson.language);
     const audioData = await this.ttsClient.generateSpeech(word.word, lesson.language, {
       singleWordMode: true,
       voiceId: ttsVoiceId,
       ipa: word.ipa ?? undefined,
+      pronunciationDictionaryId: ttsDictionaryId ?? undefined,
     });
     if (!audioData) throw AppError.internal('TTS client returned no audio');
 

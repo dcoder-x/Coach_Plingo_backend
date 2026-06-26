@@ -1,12 +1,11 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { VocabularyController } from '../controllers/VocabularyController';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { z } from 'zod';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 const controller = new VocabularyController(prisma);
 
 // Param and query validators

@@ -56,13 +56,14 @@ model Learner {
 }
 
 model LanguageOption {
-  id         String   @id @default(cuid())
-  code       String   @unique
-  name       String
-  ttsVoiceId String?  // ElevenLabs voice ID for native-accent TTS; null falls back to ELEVENLABS_VOICE_ID env var
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                String   @id @default(cuid())
+  code              String   @unique
+  name              String
+  ttsVoiceId        String?  // ElevenLabs voice ID for native-accent TTS; null falls back to ELEVENLABS_VOICE_ID env var
+  ttsDictionaryId   String?  // ElevenLabs pronunciation dictionary ID for this language; created on first use
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([isActive])
   @@index([name])

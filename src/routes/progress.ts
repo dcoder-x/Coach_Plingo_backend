@@ -1,13 +1,12 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { ProgressController } from '../controllers/ProgressController';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { recordAttemptSchema } from '../services/ProgressService';
 import { z } from 'zod';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 const controller = new ProgressController(prisma);
 
 // Param validators

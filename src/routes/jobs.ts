@@ -1,13 +1,12 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { validate } from '../middleware/validate';
 import { GenerateExercisesHandler } from '../jobs/handlers/GenerateExercisesHandler';
 import { GenerateLessonHandler } from '../jobs/handlers/GenerateLessonHandler';
 import { GenerateStoryHandler } from '../jobs/handlers/GenerateStoryHandler';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 const lessonHandler = new GenerateLessonHandler(prisma);
 const storyHandler = new GenerateStoryHandler(prisma);
 const exercisesHandler = new GenerateExercisesHandler(prisma);

@@ -174,22 +174,22 @@ const EXAMPLE_PHRASE_RULES = [
   'Each example phrase must include translation in the learner base language.',
 ].join(' ');
 
-const SCENARIO_SELECTION_RULES = [
+const SCENARIO_SELECTION_RULES = (profession: string, scenarioName: string) => [
   'Choose words a learner would genuinely need in this exact scenario, not broad office vocabulary that fits any meeting.',
-  'At least 7 of the 10 words must be concrete scenario-operational terms tied to blockers, delivery risk, architecture choices, dependencies, debugging, rollout, or decision-making.',
+  `At least 7 of the 10 words must be concrete scenario-operational terms a ${profession} professional would use in the context of "${scenarioName}".`,
   'Avoid overgeneric nouns unless they are unmistakably central to the scenario.',
   'Prefer precise workplace terms over abstract labels.',
   'Every word, phrase, and sentence must be directly usable in the active scenario context.',
   'Reject generic business vocabulary that could appear in any professional setting.',
 ].join(' ');
 
-const COMPREHENSION_QUESTION_RULES = [
+const COMPREHENSION_QUESTION_RULES = (profession: string) => [
   'Each passage must have exactly 4 multiple-choice questions and 1 short-answer question.',
   'Each multiple-choice question must include exactly 4 options.',
   'The correctAnswer for multiple-choice must match one option verbatim.',
   'Questions must be answerable from the passage content only.',
   'Do not write trivial questions that merely ask what the meeting is about or ask the learner to repeat a single vocabulary item.',
-  'At least 2 questions must target a decision, blocker, trade-off, next step, or technical risk described in the passage.',
+  `At least 2 questions must target a key decision, challenge, next step, or trade-off that a ${profession} professional would face in this scenario.`,
   'For short-answer questions, correctAnswer must be 1-3 words maximum.',
   'If a short-answer answer needs more than 3 words, convert that question to multiple-choice.',
 ].join(' ');
@@ -313,7 +313,7 @@ export class ClaudeClient {
         wordsToAvoid,
         LANGUAGE_CONTRACT_RULES(input.targetLanguage, baseLanguages[0]),
         LEXICAL_RULES,
-        SCENARIO_SELECTION_RULES,
+        SCENARIO_SELECTION_RULES(input.profession, input.scenarioName),
         CONTEXTUAL_MEANING_RULES,
         PRONUNCIATION_GUARD_RULES,
         IPA_RULES,
@@ -476,7 +476,7 @@ export class ClaudeClient {
         'For each passage, provide tokenGlosses ONLY for vocabulary NOT in the lesson word list.',
         'Include token start/end character positions, lemma (base form) for verbs/adjectives, baseLanguageGloss (translation), and source (lesson_vocab or common_lexicon).',
         'Aim for 70%+ of passage tokens covered by lesson vocab + common lexicon.',
-        COMPREHENSION_QUESTION_RULES,
+        COMPREHENSION_QUESTION_RULES(input.profession),
         `Return a JSON object matching this exact schema:\n${schema}`,
       ].join(' '),
       maxTokens: 3000,
@@ -512,8 +512,8 @@ export class ClaudeClient {
             questionTranslation: typeof question.questionTranslation === 'string' ? question.questionTranslation.trim() : undefined,
             optionsTranslation: Array.isArray(question.optionsTranslation)
               ? (question.optionsTranslation as string[])
-                  .map((opt) => (typeof opt === 'string' ? opt.trim() : ''))
-                  .filter((opt) => opt.length > 0)
+                .map((opt) => (typeof opt === 'string' ? opt.trim() : ''))
+                .filter((opt) => opt.length > 0)
               : undefined,
           }));
 

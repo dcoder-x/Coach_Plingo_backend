@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { LearningController } from '../controllers/LearningController';
 import { PronunciationController } from '../controllers/PronunciationController';
 import { authenticateToken } from '../middleware/auth';
@@ -8,9 +7,9 @@ import { uploadAudio } from '../middleware/upload';
 import { createLearningPathSchema, updateLearningPathSchema } from '../services/LearningService';
 import { completeScenarioSessionSchema } from '../services/LessonSessionService';
 import { z } from 'zod';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 const controller = new LearningController(prisma);
 const pronunciationController = new PronunciationController(prisma);
 

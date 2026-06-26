@@ -118,9 +118,23 @@ function parseArgs(argv: string[]): CliOptions {
   return options;
 }
 
+async function connectWithRetry(prisma: PrismaClient, retries = 5, delayMs = 5000): Promise<void> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await prisma.$connect();
+      return;
+    } catch (err) {
+      if (attempt === retries) throw err;
+      console.log(`DB connection attempt ${attempt} failed, retrying in ${delayMs / 1000}s...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   const prisma = new PrismaClient();
+  await connectWithRetry(prisma);
   const contentService = new ContentService(prisma);
 
   try {
@@ -207,33 +221,37 @@ async function main(): Promise<void> {
 
     for (const subcategory of subcategories) {
       for (const scenario of scenarios) {
-        if (options.forceRegenerate) {
-          await prisma.scenarioLesson.deleteMany({
-            where: {
-              subcategoryId: subcategory.id,
-              scenarioId: scenario.id,
-              language: options.language,
-            },
-          });
-        }
+        try {
+          // Reconnect if the DB dropped during a long AI generation call
+          await connectWithRetry(prisma, 3, 5000);
 
-        const generated = await contentService.getOrGenerateLesson({
-          professionId: profession.id,
-          subcategoryId: subcategory.id,
-          scenarioId: scenario.id,
-          language: options.language,
-          baseLanguage: options.baseLanguage,
-        });
+          if (options.forceRegenerate) {
+            await prisma.scenarioLesson.deleteMany({
+              where: {
+                subcategoryId: subcategory.id,
+                scenarioId: scenario.id,
+                language: options.language,
+              },
+            });
+          }
 
-        if (!generated.ready) {
-          results.push({
-            subcategory: subcategory.slug || subcategory.id,
-            scenario: scenario.slug,
-            ready: false,
-            status: generated.status,
+          const generated = await contentService.getOrGenerateLesson({
+            professionId: profession.id,
+            subcategoryId: subcategory.id,
+            scenarioId: scenario.id,
+            language: options.language,
+            baseLanguage: options.baseLanguage,
           });
-          continue;
-        }
+
+          if (!generated.ready) {
+            results.push({
+              subcategory: subcategory.slug || subcategory.id,
+              scenario: scenario.slug,
+              ready: false,
+              status: generated.status,
+            });
+            continue;
+          }
 
         results.push({
           subcategory: subcategory.slug || subcategory.id,
@@ -261,6 +279,17 @@ async function main(): Promise<void> {
               ?.content.slice(0, 220)
             : undefined,
         });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.error(`Failed: ${subcategory.slug || subcategory.id} / ${scenario.slug} — ${message}`);
+          results.push({
+            subcategory: subcategory.slug || subcategory.id,
+            scenario: scenario.slug,
+            ready: false,
+            status: 'ERROR',
+            error: message,
+          });
+        }
       }
     }
 

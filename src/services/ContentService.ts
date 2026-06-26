@@ -248,6 +248,17 @@ export class ContentService {
       throw AppError.notFound('Unable to generate lesson: profession, subcategory, or scenario not found');
     }
 
+    const existingWords = await this.prisma.scenarioWord.findMany({
+      where: {
+        lesson: {
+          scenarioId: params.scenarioId,
+          language: params.language,
+        },
+      },
+      select: { word: true },
+    });
+    const excludeWords = [...new Set(existingWords.map((w) => w.word))];
+
     const generated = await this.generator.generateLesson({
       profession: profession.name,
       professionDescription: profession.description || undefined,
@@ -259,7 +270,7 @@ export class ContentService {
       baseLanguages: [params.baseLanguage],
       passageCount: 1,
       count: 10,
-      excludeWords: [],
+      excludeWords,
     });
 
     const audioQueue: Array<{ wordId: string; word: string; ipa?: string; previousText?: string; nextText?: string }> = [];
@@ -380,13 +391,34 @@ export class ContentService {
       });
     }, { timeout: 60_000 });
 
-    const ttsVoiceId = await ElevenLabsClient.resolveVoiceId(this.prisma, params.language);
+    const { voiceId: ttsVoiceId, dictionaryId: existingDictionaryId } =
+      await ElevenLabsClient.resolveVoiceConfig(this.prisma, params.language);
+
+    // Upsert word→IPA rules into the language's pronunciation dictionary so ElevenLabs
+    // pronounces target-language words correctly instead of falling back to English phonology.
+    const wordsWithIpa = audioQueue.filter((w) => !!w.ipa) as Array<{ wordId: string; word: string; ipa: string }>;
+    const ttsDictionaryId = wordsWithIpa.length > 0
+      ? await this.ttsClient.upsertPronunciationEntries(
+        wordsWithIpa.map((w) => ({ word: w.word, ipa: w.ipa })),
+        existingDictionaryId,
+        params.language,
+      )
+      : existingDictionaryId;
+
+    // Persist the dictionary ID back to the language row if it was just created.
+    if (ttsDictionaryId && ttsDictionaryId !== existingDictionaryId) {
+      await this.prisma.languageOption.updateMany({
+        where: { code: params.language },
+        data: { ttsDictionaryId },
+      });
+    }
 
     for (const item of audioQueue) {
       const audioData = await this.ttsClient.generateSpeech(item.word, params.language, {
         singleWordMode: true,
         voiceId: ttsVoiceId,
         ipa: item.ipa,
+        pronunciationDictionaryId: ttsDictionaryId ?? undefined,
       });
       if (!audioData) {
         continue;

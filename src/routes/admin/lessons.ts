@@ -1,8 +1,6 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AdminLessonsController } from '../../controllers/AdminLessonsController';
-
-const prisma = new PrismaClient();
+import prisma from '../../lib/prisma';
 
 export function createLessonsRouter(): Router {
   const router = Router();
