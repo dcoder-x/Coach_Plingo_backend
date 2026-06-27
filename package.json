@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma generate && prisma migrate deploy && ts-node --transpile-only scripts/reset_learner_data.ts && npm run prisma:seed && npm run build",
+    "vercel-build": "prisma generate && prisma migrate deploy && ts-node --transpile-only scripts/reset_learner_data.ts && npm run prisma:seed && npm run catalog:activate && npm run build",
     "catalog:activate": "ts-node --transpile-only scripts/set_active_catalog.ts",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
