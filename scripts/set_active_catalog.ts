@@ -8,10 +8,10 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Languages with real lesson content
-  const activeLanguageCodes = ['en', 'es', 'de'];
+  const activeLanguageCodes = ['en', 'es', 'de', 'fr'];
 
   // Professions with real lesson content
-  const activeProfessionSlugs = ['software_engineer', 'entrepreneur'];
+  const activeProfessionSlugs = ['healthcare', 'engineering', 'marketing', 'technology_it'];
 
   const [langActive, langInactive, profActive, profInactive] = await Promise.all([
     prisma.languageOption.updateMany({

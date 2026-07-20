@@ -146,12 +146,12 @@ const IPA_RULES = [
 ].join(' ');
 
 const FILL_GAP_STARTERS_BY_LANGUAGE: Record<string, string> = {
-  es: '"En", "Al", "Durante", "La", "El", "Los", "Las", "Debemos", "Necesitamos", "Hay que", "Para", "Cuando", "Si"',
-  en: '"In", "At", "During", "While", "The", "We", "To", "When", "If"',
-  fr: '"Dans", "Au", "En", "Pendant", "La", "Le", "Les", "Nous", "Pour", "Quand"',
-  de: '"Im", "In", "Beim", "Während", "Die", "Der", "Das", "Wir", "Für", "Wenn", "Bei"',
-  it: '"In", "Nel", "Nella", "Al", "Durante", "La", "Il", "I", "Dobbiamo", "Per", "Quando"',
-  pt: '"Em", "No", "Na", "Ao", "Durante", "Devemos", "Precisamos", "Para", "Quando"',
+  es: '"En", "Al", "Durante", "Antes de", "Después de", "Sin", "Tras", "La", "El", "Los", "Las", "Una", "Un", "Debemos", "Necesitamos", "Hay que", "Para", "Cuando", "Si"',
+  en: '"In", "At", "During", "While", "Before", "After", "Without", "The", "A", "An", "We", "To", "When", "If"',
+  fr: '"Dans", "Au", "Aux", "En", "Pendant", "Avant", "Après", "Sans", "La", "Le", "Les", "Une", "Un", "Nous", "Pour", "Quand"',
+  de: '"Im", "In", "An", "Am", "Auf", "Bei", "Beim", "Nach", "Vor", "Ohne", "Während", "Die", "Der", "Das", "Den", "Dem", "Des", "Eine", "Ein", "Wir", "Für", "Wenn"',
+  it: '"In", "Nel", "Nella", "Al", "Durante", "Prima di", "Dopo", "Senza", "La", "Il", "I", "Una", "Un", "Dobbiamo", "Per", "Quando"',
+  pt: '"Em", "No", "Na", "Ao", "Durante", "Antes de", "Depois de", "Sem", "Uma", "Um", "Devemos", "Precisamos", "Para", "Quando"',
 };
 
 function getFillGapRules(targetLanguage: string): string {
@@ -195,12 +195,12 @@ const COMPREHENSION_QUESTION_RULES = (profession: string) => [
 ].join(' ');
 
 const SCENARIO_FILL_GAP_STARTERS: Record<string, RegExp> = {
-  es: /^(en|al|durante|la|el|los|las|debemos|necesitamos|hay que|para|cuando|si)\b/i,
-  en: /^(in|at|during|while|the|a|we|to|when|if)\b/i,
-  fr: /^(dans|au|en|pendant|la|le|les|nous|pour|quand)\b/i,
-  de: /^(in|im|beim|waehrend|während|die|der|das|wir|für|wenn)\b/i,
-  it: /^(in|nel|nella|al|durante|la|il|i|dobbiamo|per|quando)\b/i,
-  pt: /^(em|no|na|ao|durante|a|o|os|as|devemos|precisamos|para|quando)\b/i,
+  es: /^(en|al|durante|antes de|después de|sin|tras|la|el|los|las|una|un|debemos|necesitamos|hay que|para|cuando|si)\b/i,
+  en: /^(in|at|during|while|before|after|without|the|a|an|we|to|when|if)\b/i,
+  fr: /^(dans|au|aux|en|pendant|avant|après|sans|la|le|les|une|un|nous|pour|quand)\b/i,
+  de: /^(in|im|an|am|auf|bei|beim|nach|vor|ohne|waehrend|während|die|der|das|den|dem|des|eine|ein|wir|für|wenn|ist|sind)\b/i,
+  it: /^(in|nel|nella|al|durante|prima di|dopo|senza|la|il|i|una|un|dobbiamo|per|quando)\b/i,
+  pt: /^(em|no|na|ao|durante|antes de|depois de|sem|uma|um|devemos|precisamos|para|quando)\b/i,
 };
 
 // ---------------------------------------------------------------------------
@@ -239,8 +239,9 @@ export class ClaudeClient {
     'he', 'she', 'they', 'we', 'you', 'it', 'his', 'her', 'their', 'our', 'your',
     // Prepositions / conjunctions — English-only forms
     'with', 'from', 'about', 'into', 'onto', 'upon', 'until', 'unless',
-    // Nouns with no loanword status in the supported languages
-    'issue', 'update', 'safety', 'report', 'patient',
+    // Nouns with no loanword status in the supported languages.
+    // "patient" excluded: valid native orthography in French and near-identical in German (Patient).
+    'issue', 'update', 'safety', 'report',
   ]);
 
   constructor() {
@@ -1356,7 +1357,15 @@ export class ClaudeClient {
       const template = String(sentence.template || '').trim();
       if (!this.validateFillGapTemplate(template, sentence.answer)) return false;
       if (!this.hasScenarioFramingStarter(template, targetLanguage)) return false;
-      if (ClaudeClient.COPULAR_BLANK_PATTERN.test(template)) return false;
+      // Copular blanks ("Der ___ ist X") are only rejected when paired with a
+      // generic adjective — otherwise legitimate status statements like
+      // "Der Puls ist unregelmäßig" (clinical vitals report) get dropped.
+      if (
+        ClaudeClient.COPULAR_BLANK_PATTERN.test(template) &&
+        ClaudeClient.GENERIC_ADJECTIVES.test(template)
+      ) {
+        return false;
+      }
       if (ClaudeClient.META_DISCUSSION_PATTERN.test(template)) return false;
       return true;
     });
@@ -1377,7 +1386,7 @@ export class ClaudeClient {
 
   private isGenericScenarioWord(
     word: string,
-    _targetLanguage: string,
+    targetLanguage: string,
     _profession: string,
     input?: ScenarioGenerationInput,
   ): boolean {
@@ -1389,7 +1398,13 @@ export class ClaudeClient {
 
     // Context echo: if the word is a token from the scenario/profession label itself,
     // the model echoed the prompt rather than generating lesson vocabulary.
-    if (input) {
+    // Skipped for English targets: profession/subcategory labels are English, so
+    // legitimate English vocabulary (e.g. "patient", "software", "data") would
+    // otherwise collide with its own label tokens and be wrongly rejected.
+    const normalizedLanguage = targetLanguage.trim().toLowerCase();
+    const isEnglishTarget = normalizedLanguage === 'en' || normalizedLanguage.startsWith('en');
+
+    if (input && !isEnglishTarget) {
       const contextTokens = [input.scenarioName, input.subcategoryName, input.profession]
         .join(' ')
         .toLowerCase()

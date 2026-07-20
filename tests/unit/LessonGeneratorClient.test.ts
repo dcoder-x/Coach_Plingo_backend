@@ -86,8 +86,8 @@ describe('LessonGeneratorClient', () => {
     } as any);
 
     const lesson = await client.generateLesson({
-      profession: 'software_engineer',
-      subcategoryName: 'System Design & Architecture',
+      profession: 'technology_it',
+      subcategoryName: 'Software Development',
       scenarioName: 'Technical Standup',
       targetLanguage: 'es',
       baseLanguages: ['en'],
@@ -112,9 +112,9 @@ describe('LessonGeneratorClient', () => {
 
     await expect(
       client.generateLesson({
-        profession: 'product_manager',
-        subcategoryName: 'Roadmap Prioritization',
-        scenarioName: 'Executive Readout',
+        profession: 'technology_it',
+        subcategoryName: 'Product Management',
+        scenarioName: 'Roadmap Prioritization',
         targetLanguage: 'es',
         baseLanguages: ['en'],
         count: 3,
@@ -139,8 +139,8 @@ describe('LessonGeneratorClient', () => {
 
     await expect(
       client.generateLesson({
-        profession: 'software_engineer',
-        subcategoryName: 'System Design & Architecture',
+        profession: 'technology_it',
+        subcategoryName: 'Software Development',
         scenarioName: 'Technical Standup',
         targetLanguage: 'es',
         baseLanguages: ['en'],

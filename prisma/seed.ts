@@ -7,15 +7,16 @@ const prisma = new PrismaClient();
 // null = fall back to the ELEVENLABS_VOICE_ID env var (used as the English/default voice).
 const languages: Array<{ code: string; name: string; ttsVoiceId: string | null }> = [
   { code: 'en', name: 'English', ttsVoiceId: null },                    // uses ELEVENLABS_VOICE_ID env var
-  { code: 'es', name: 'Spanish', ttsVoiceId: 'kgG7dCoKTfoYNFAuKnyk' }, // Antoni — native Spanish cadence
+  { code: 'es', name: 'Spanish', ttsVoiceId: 'Gg1duEKiqWOgqcCJCFVh' }, // Rafael — calm, conversational Latin American Spanish
   { code: 'de', name: 'German',  ttsVoiceId: 'pqHfZKP75CvOlQylNhV4' }, // Bill — multilingual, German accent
   { code: 'fr', name: 'French',  ttsVoiceId: 'XB0fDUnXU5powFXDhCwa' }, // Charlotte — native French speaker
 ];
 
 const professions = [
-  { slug: 'software_engineer', name: 'Software Engineer' },
-  { slug: 'product_manager', name: 'Product Manager' },
-  { slug: 'entrepreneur', name: 'Entrepreneur' },
+  { slug: 'healthcare', name: 'Healthcare' },
+  { slug: 'engineering', name: 'Engineering' },
+  { slug: 'marketing', name: 'Marketing' },
+  { slug: 'technology_it', name: 'Technology & IT' },
 ];
 
 type SeedSubcategory = {
@@ -32,125 +33,144 @@ type SeedScenario = {
 };
 
 const professionSubcategories: Record<string, SeedSubcategory[]> = {
-  software_engineer: [
+  healthcare: [
     {
-      name: 'System Design & Architecture',
-      description: 'Vocabulary for architecture discussions, scalability, and trade-offs.',
+      name: 'Patient Care',
+      description: 'Vocabulary for intake, care plans, and patient communication.',
       position: 1,
     },
     {
-      name: 'Backend APIs & Services',
-      description: 'Terms for API contracts, services, and integration patterns.',
+      name: 'Emergency Medicine',
+      description: 'Terms for triage, urgent assessment, and rapid response.',
       position: 2,
     },
     {
-      name: 'Frontend Delivery',
-      description: 'Language for UI implementation, accessibility, and performance.',
+      name: 'Nursing Practice',
+      description: 'Language for shift handoffs, monitoring, and care coordination.',
       position: 3,
     },
     {
-      name: 'Quality & Testing',
-      description: 'Terms for unit, integration, regression, and release quality.',
+      name: 'Medical Administration',
+      description: 'Vocabulary for billing, compliance, and documentation.',
       position: 4,
-    },
-    {
-      name: 'DevOps & Reliability',
-      description: 'Operational vocabulary for CI/CD, observability, and incident response.',
-      position: 5,
     },
   ],
-  product_manager: [
+  engineering: [
     {
-      name: 'Discovery & User Research',
-      description: 'Vocabulary for interviews, insights, and problem validation.',
+      name: 'Civil Engineering',
+      description: 'Terms for infrastructure design, inspections, and permitting.',
       position: 1,
     },
     {
-      name: 'Roadmapping & Prioritization',
-      description: 'Terms used in planning, sequencing, and trade-off decisions.',
+      name: 'Mechanical Engineering',
+      description: 'Vocabulary for design review, testing, and failure analysis.',
       position: 2,
     },
     {
-      name: 'Product Analytics',
-      description: 'Language for metrics, funnels, and experiment analysis.',
+      name: 'Construction & Site Management',
+      description: 'Language for site briefings, safety, and subcontractor coordination.',
       position: 3,
     },
     {
-      name: 'Stakeholder Communication',
-      description: 'Vocabulary for alignment, updates, and expectation management.',
+      name: 'Project Engineering',
+      description: 'Terms for scoping, scheduling, and stakeholder updates.',
       position: 4,
-    },
-    {
-      name: 'Launch & Growth',
-      description: 'Terms for launches, adoption, retention, and optimization.',
-      position: 5,
     },
   ],
-  entrepreneur: [
+  marketing: [
     {
-      name: 'Opportunity Discovery',
-      description: 'Vocabulary for market problems and opportunity analysis.',
+      name: 'Digital Marketing',
+      description: 'Vocabulary for campaigns, ad platforms, and performance metrics.',
       position: 1,
     },
     {
-      name: 'Product & MVP',
-      description: 'Terms for MVP scope, validation, and iteration.',
+      name: 'Content Marketing',
+      description: 'Terms for content strategy, editorial process, and storytelling.',
       position: 2,
     },
     {
-      name: 'Go-to-Market',
-      description: 'Language for GTM strategy, channels, and positioning.',
+      name: 'Brand Management',
+      description: 'Language for brand guidelines, positioning, and reputation.',
       position: 3,
     },
     {
-      name: 'Finance & Operations',
-      description: 'Vocabulary for runway, unit economics, and operations.',
+      name: 'Sales & Business Development',
+      description: 'Vocabulary for discovery calls, objections, and negotiation.',
       position: 4,
     },
+  ],
+  technology_it: [
     {
-      name: 'Pitching & Fundraising',
-      description: 'Terms for investor communication and fundraising process.',
-      position: 5,
+      name: 'Software Development',
+      description: 'Terms for code review, incidents, and engineering process.',
+      position: 1,
+    },
+    {
+      name: 'Data Analytics',
+      description: 'Vocabulary for insights, data quality, and stakeholder reporting.',
+      position: 2,
+    },
+    {
+      name: 'Product Management',
+      description: 'Language for prioritization, requirements, and roadmap trade-offs.',
+      position: 3,
+    },
+    {
+      name: 'Cybersecurity',
+      description: 'Terms for incident response, audits, and risk assessment.',
+      position: 4,
     },
   ],
 };
 
 const professionScenarios: Record<string, SeedScenario[]> = {
-  software_engineer: [
-    { slug: 'technical-standup', displayName: 'Technical Standup', description: 'Daily progress updates, blockers, and coordination with the team.', position: 1 },
-    { slug: 'feature-kickoff', displayName: 'Feature Kickoff', description: 'Clarifying scope, requirements, and implementation approach.', position: 2 },
-    { slug: 'code-review', displayName: 'Code Review Discussion', description: 'Giving and receiving implementation feedback with precision.', position: 3 },
-    { slug: 'incident-response', displayName: 'Incident Response', description: 'Diagnosing failures, mitigation, and post-incident communication.', position: 4 },
-    { slug: 'api-design', displayName: 'API Design Meeting', description: 'Designing contracts, payloads, and backward-compatible changes.', position: 5 },
-    { slug: 'architecture-review', displayName: 'Architecture Review', description: 'Discussing scalability, reliability, and technical trade-offs.', position: 6 },
-    { slug: 'qa-triage', displayName: 'QA Bug Triage', description: 'Prioritizing defects and agreeing on release blockers.', position: 7 },
-    { slug: 'release-planning', displayName: 'Release Planning', description: 'Defining release scope, readiness checks, and rollback plans.', position: 8 },
-    { slug: 'stakeholder-update', displayName: 'Stakeholder Update', description: 'Explaining technical status and delivery risks to non-engineers.', position: 9 },
-    { slug: 'retrospective', displayName: 'Sprint Retrospective', description: 'Reflecting on outcomes, process issues, and improvement actions.', position: 10 },
+  healthcare: [
+    { slug: 'patient-intake-consult', displayName: 'Patient Intake Consult', description: 'Intake and history-taking conversation with a new patient.', position: 1 },
+    { slug: 'discharge-instructions', displayName: 'Discharge Instructions', description: 'Explaining a care plan and discharge instructions to a patient or family.', position: 2 },
+    { slug: 'triage-assessment', displayName: 'Triage Assessment', description: 'Rapid triage and severity communication in an urgent setting.', position: 3 },
+    { slug: 'code-team-handoff', displayName: 'Code Team Handoff', description: 'Urgent handoff to an incoming code or trauma team.', position: 4 },
+    { slug: 'shift-handoff-sbar', displayName: 'Shift Handoff (SBAR)', description: 'SBAR-style shift handoff to an incoming nurse or provider.', position: 5 },
+    { slug: 'physician-escalation', displayName: 'Physician Escalation', description: 'Escalating a patient concern or advocating for a care change with a physician.', position: 6 },
+    { slug: 'insurance-billing-call', displayName: 'Insurance & Billing Call', description: 'Explaining coverage and billing details to a patient.', position: 7 },
+    { slug: 'compliance-documentation-review', displayName: 'Compliance Documentation Review', description: 'Reviewing chart documentation for regulatory compliance.', position: 8 },
+    { slug: 'family-care-conference', displayName: 'Family Care Conference', description: "Discussing a treatment plan and prognosis with a patient's family.", position: 9 },
+    { slug: 'interdisciplinary-rounds', displayName: 'Interdisciplinary Rounds', description: 'Coordinating care across nursing, physician, and administrative roles during rounds.', position: 10 },
   ],
-  product_manager: [
-    { slug: 'user-research-interview', displayName: 'User Research Interview', description: 'Running discovery interviews to validate user problems.', position: 1 },
-    { slug: 'problem-framing', displayName: 'Problem Framing Workshop', description: 'Aligning on problem statements, constraints, and outcomes.', position: 2 },
-    { slug: 'roadmap-prioritization', displayName: 'Roadmap Prioritization', description: 'Sequencing initiatives and balancing trade-offs.', position: 3 },
-    { slug: 'backlog-refinement', displayName: 'Backlog Refinement', description: 'Clarifying stories, acceptance criteria, and dependencies.', position: 4 },
-    { slug: 'analytics-review', displayName: 'Product Analytics Review', description: 'Interpreting funnel metrics and experiment results.', position: 5 },
-    { slug: 'cross-functional-planning', displayName: 'Cross-functional Planning', description: 'Coordinating with design, engineering, and go-to-market teams.', position: 6 },
-    { slug: 'launch-readiness', displayName: 'Launch Readiness Check', description: 'Confirming launch criteria, comms, and rollout plan.', position: 7 },
-    { slug: 'executive-readout', displayName: 'Executive Readout', description: 'Presenting product impact and strategic next steps.', position: 8 },
-    { slug: 'customer-feedback-loop', displayName: 'Customer Feedback Loop', description: 'Synthesizing feedback and identifying iteration priorities.', position: 9 },
-    { slug: 'post-launch-review', displayName: 'Post-launch Review', description: 'Assessing adoption, retention, and learning for next cycle.', position: 10 },
+  engineering: [
+    { slug: 'site-inspection-report', displayName: 'Site Inspection Report', description: 'Reporting inspection findings to a client or regulator.', position: 1 },
+    { slug: 'permit-review-meeting', displayName: 'Permit Review Meeting', description: 'Regulatory and permit approval discussion.', position: 2 },
+    { slug: 'design-review-meeting', displayName: 'Design Review Meeting', description: 'Presenting a design for technical review and feedback.', position: 3 },
+    { slug: 'failure-analysis-debrief', displayName: 'Failure Analysis Debrief', description: 'Explaining root-cause failure analysis to stakeholders.', position: 4 },
+    { slug: 'daily-site-briefing', displayName: 'Daily Site Briefing', description: 'Morning safety and schedule briefing on a job site.', position: 5 },
+    { slug: 'subcontractor-coordination', displayName: 'Subcontractor Coordination', description: 'Coordinating scope and schedule with a subcontractor.', position: 6 },
+    { slug: 'project-kickoff-scoping', displayName: 'Project Kickoff & Scoping', description: 'Kickoff call defining project scope and timeline.', position: 7 },
+    { slug: 'stakeholder-status-update', displayName: 'Stakeholder Status Update', description: 'Progress and budget update to project stakeholders.', position: 8 },
+    { slug: 'safety-incident-report', displayName: 'Safety Incident Report', description: 'Reporting and documenting a site safety incident.', position: 9 },
+    { slug: 'schedule-delay-negotiation', displayName: 'Schedule Delay Negotiation', description: 'Communicating a schedule delay and renegotiating timeline with a client.', position: 10 },
   ],
-  entrepreneur: [
-    { slug: 'idea-validation', displayName: 'Idea Validation', description: 'Testing assumptions and validating customer pain points.', position: 1 },
-    { slug: 'mvp-scoping', displayName: 'MVP Scoping', description: 'Defining MVP boundaries, constraints, and success criteria.', position: 2 },
-    { slug: 'market-positioning', displayName: 'Market Positioning', description: 'Crafting value proposition and competitive differentiation.', position: 3 },
-    { slug: 'go-to-market-plan', displayName: 'Go-to-Market Plan', description: 'Planning channels, messaging, and first customer acquisition.', position: 4 },
-    { slug: 'customer-discovery-call', displayName: 'Customer Discovery Call', description: 'Interviewing prospects to refine product direction.', position: 5 },
-    { slug: 'partnership-negotiation', displayName: 'Partnership Negotiation', description: 'Exploring strategic partnerships and commercial terms.', position: 6 },
-    { slug: 'operations-review', displayName: 'Operations Review', description: 'Reviewing execution bottlenecks and process improvements.', position: 7 },
-    { slug: 'financial-planning', displayName: 'Financial Planning', description: 'Discussing runway, unit economics, and spending priorities.', position: 8 },
-    { slug: 'investor-pitch', displayName: 'Investor Pitch', description: 'Presenting traction, vision, and funding ask to investors.', position: 9 },
-    { slug: 'growth-retrospective', displayName: 'Growth Retrospective', description: 'Analyzing growth experiments and choosing next bets.', position: 10 },
+  marketing: [
+    { slug: 'campaign-performance-review', displayName: 'Campaign Performance Review', description: 'Reporting campaign metrics to a client or lead.', position: 1 },
+    { slug: 'ad-platform-troubleshooting', displayName: 'Ad Platform Troubleshooting', description: 'Diagnosing an underperforming ad account issue.', position: 2 },
+    { slug: 'content-strategy-pitch', displayName: 'Content Strategy Pitch', description: 'Pitching a content plan to stakeholders.', position: 3 },
+    { slug: 'editorial-feedback-session', displayName: 'Editorial Feedback Session', description: 'Giving and receiving editorial feedback.', position: 4 },
+    { slug: 'brand-guideline-alignment', displayName: 'Brand Guideline Alignment', description: 'Enforcing brand consistency with a partner or internal team.', position: 5 },
+    { slug: 'reputation-crisis-response', displayName: 'Reputation Crisis Response', description: 'Responding to a brand or PR issue.', position: 6 },
+    { slug: 'discovery-call', displayName: 'Discovery Call', description: 'Sales discovery call with a prospective customer.', position: 7 },
+    { slug: 'objection-handling-negotiation', displayName: 'Objection Handling & Negotiation', description: 'Handling objections and negotiating contract terms.', position: 8 },
+    { slug: 'influencer-partnership-outreach', displayName: 'Influencer Partnership Outreach', description: 'Negotiating terms with an influencer or brand partner.', position: 9 },
+    { slug: 'quarterly-marketing-review', displayName: 'Quarterly Marketing Review', description: 'Presenting quarterly marketing results and strategy to leadership.', position: 10 },
+  ],
+  technology_it: [
+    { slug: 'code-review-discussion', displayName: 'Code Review Discussion', description: 'Giving and receiving code review feedback.', position: 1 },
+    { slug: 'incident-postmortem', displayName: 'Incident Postmortem', description: 'Blameless postmortem discussion after a production incident.', position: 2 },
+    { slug: 'insights-presentation', displayName: 'Insights Presentation', description: 'Presenting data findings to non-technical stakeholders.', position: 3 },
+    { slug: 'data-quality-escalation', displayName: 'Data Quality Escalation', description: 'Escalating a data quality issue to relevant teams.', position: 4 },
+    { slug: 'roadmap-prioritization', displayName: 'Roadmap Prioritization', description: 'Prioritization and trade-off discussion for the product roadmap.', position: 5 },
+    { slug: 'feature-requirements-review', displayName: 'Feature Requirements Review', description: 'Requirements-gathering session with stakeholders.', position: 6 },
+    { slug: 'incident-response-briefing', displayName: 'Incident Response Briefing', description: 'Security incident briefing to leadership or affected teams.', position: 7 },
+    { slug: 'security-audit-findings', displayName: 'Security Audit Findings', description: 'Presenting security audit findings and a remediation plan.', position: 8 },
+    { slug: 'technical-standup', displayName: 'Technical Standup', description: 'Daily technical standup covering progress and blockers.', position: 9 },
+    { slug: 'vendor-risk-assessment', displayName: 'Vendor Risk Assessment', description: "Evaluating a third-party vendor's security posture.", position: 10 },
   ],
 };
 
@@ -299,6 +319,76 @@ async function main(): Promise<void> {
     { language: 'en', token: 'of', lemma: 'of', baseLanguageGloss: 'de', partOfSpeech: 'preposition', frequencyRank: 2 },
     { language: 'en', token: 'and', lemma: 'and', baseLanguageGloss: 'y', partOfSpeech: 'conjunction', frequencyRank: 3 },
     { language: 'en', token: 'to', lemma: 'to', baseLanguageGloss: 'a, para', partOfSpeech: 'preposition', frequencyRank: 4 },
+    // German common words
+    { language: 'de', token: 'der', lemma: 'der', baseLanguageGloss: 'the (masculine)', partOfSpeech: 'article', frequencyRank: 1 },
+    { language: 'de', token: 'die', lemma: 'die', baseLanguageGloss: 'the (feminine/plural)', partOfSpeech: 'article', frequencyRank: 2 },
+    { language: 'de', token: 'und', lemma: 'und', baseLanguageGloss: 'and', partOfSpeech: 'conjunction', frequencyRank: 3 },
+    { language: 'de', token: 'das', lemma: 'das', baseLanguageGloss: 'the (neuter) / that', partOfSpeech: 'article', frequencyRank: 4 },
+    { language: 'de', token: 'ist', lemma: 'sein', baseLanguageGloss: 'is', partOfSpeech: 'verb', frequencyRank: 5 },
+    { language: 'de', token: 'in', lemma: 'in', baseLanguageGloss: 'in', partOfSpeech: 'preposition', frequencyRank: 6 },
+    { language: 'de', token: 'zu', lemma: 'zu', baseLanguageGloss: 'to, at', partOfSpeech: 'preposition', frequencyRank: 7 },
+    { language: 'de', token: 'den', lemma: 'der', baseLanguageGloss: 'the (masc. accusative)', partOfSpeech: 'article', frequencyRank: 8 },
+    // French common words
+    { language: 'fr', token: 'le', lemma: 'le', baseLanguageGloss: 'the (masculine)', partOfSpeech: 'article', frequencyRank: 1 },
+    { language: 'fr', token: 'la', lemma: 'la', baseLanguageGloss: 'the (feminine)', partOfSpeech: 'article', frequencyRank: 2 },
+    { language: 'fr', token: 'et', lemma: 'et', baseLanguageGloss: 'and', partOfSpeech: 'conjunction', frequencyRank: 3 },
+    { language: 'fr', token: 'de', lemma: 'de', baseLanguageGloss: 'of, from', partOfSpeech: 'preposition', frequencyRank: 4 },
+    { language: 'fr', token: 'est', lemma: 'être', baseLanguageGloss: 'is', partOfSpeech: 'verb', frequencyRank: 5 },
+    { language: 'fr', token: 'à', lemma: 'à', baseLanguageGloss: 'to, at', partOfSpeech: 'preposition', frequencyRank: 6 },
+    { language: 'fr', token: 'que', lemma: 'que', baseLanguageGloss: 'that, which', partOfSpeech: 'pronoun', frequencyRank: 7 },
+    { language: 'fr', token: 'les', lemma: 'les', baseLanguageGloss: 'the (plural)', partOfSpeech: 'article', frequencyRank: 8 },
+  ];
+
+  const germanEnglishHighFrequency: Array<{ token: string; baseLanguageGloss: string; frequencyRank: number }> = [
+    { token: 'ich', baseLanguageGloss: 'I', frequencyRank: 9 },
+    { token: 'du', baseLanguageGloss: 'you (informal)', frequencyRank: 10 },
+    { token: 'sie', baseLanguageGloss: 'she / they / you (formal)', frequencyRank: 11 },
+    { token: 'er', baseLanguageGloss: 'he', frequencyRank: 12 },
+    { token: 'wir', baseLanguageGloss: 'we', frequencyRank: 13 },
+    { token: 'nicht', baseLanguageGloss: 'not', frequencyRank: 14 },
+    { token: 'mit', baseLanguageGloss: 'with', frequencyRank: 15 },
+    { token: 'für', baseLanguageGloss: 'for', frequencyRank: 16 },
+    { token: 'auf', baseLanguageGloss: 'on', frequencyRank: 17 },
+    { token: 'von', baseLanguageGloss: 'from, of', frequencyRank: 18 },
+    { token: 'auch', baseLanguageGloss: 'also', frequencyRank: 19 },
+    { token: 'werden', baseLanguageGloss: 'to become / will', frequencyRank: 20 },
+    { token: 'haben', baseLanguageGloss: 'to have', frequencyRank: 21 },
+    { token: 'sind', baseLanguageGloss: 'are', frequencyRank: 22 },
+    { token: 'aber', baseLanguageGloss: 'but', frequencyRank: 23 },
+    { token: 'wie', baseLanguageGloss: 'how, as', frequencyRank: 24 },
+    { token: 'was', baseLanguageGloss: 'what', frequencyRank: 25 },
+    { token: 'wenn', baseLanguageGloss: 'if, when', frequencyRank: 26 },
+    { token: 'einen', baseLanguageGloss: 'a, an (masc. accusative)', frequencyRank: 27 },
+    { token: 'noch', baseLanguageGloss: 'still, yet', frequencyRank: 28 },
+    { token: 'nach', baseLanguageGloss: 'after, to', frequencyRank: 29 },
+    { token: 'bei', baseLanguageGloss: 'at, near, during', frequencyRank: 30 },
+    { token: 'oder', baseLanguageGloss: 'or', frequencyRank: 31 },
+  ];
+
+  const frenchEnglishHighFrequency: Array<{ token: string; baseLanguageGloss: string; frequencyRank: number }> = [
+    { token: 'un', baseLanguageGloss: 'a, an (masculine)', frequencyRank: 9 },
+    { token: 'une', baseLanguageGloss: 'a, an (feminine)', frequencyRank: 10 },
+    { token: 'je', baseLanguageGloss: 'I', frequencyRank: 11 },
+    { token: 'il', baseLanguageGloss: 'he, it', frequencyRank: 12 },
+    { token: 'elle', baseLanguageGloss: 'she, it', frequencyRank: 13 },
+    { token: 'nous', baseLanguageGloss: 'we', frequencyRank: 14 },
+    { token: 'vous', baseLanguageGloss: 'you (formal/plural)', frequencyRank: 15 },
+    { token: 'pas', baseLanguageGloss: 'not', frequencyRank: 16 },
+    { token: 'avec', baseLanguageGloss: 'with', frequencyRank: 17 },
+    { token: 'pour', baseLanguageGloss: 'for', frequencyRank: 18 },
+    { token: 'sur', baseLanguageGloss: 'on', frequencyRank: 19 },
+    { token: 'dans', baseLanguageGloss: 'in', frequencyRank: 20 },
+    { token: 'aussi', baseLanguageGloss: 'also', frequencyRank: 21 },
+    { token: 'être', baseLanguageGloss: 'to be', frequencyRank: 22 },
+    { token: 'avoir', baseLanguageGloss: 'to have', frequencyRank: 23 },
+    { token: 'sont', baseLanguageGloss: 'are', frequencyRank: 24 },
+    { token: 'mais', baseLanguageGloss: 'but', frequencyRank: 25 },
+    { token: 'comment', baseLanguageGloss: 'how', frequencyRank: 26 },
+    { token: 'quoi', baseLanguageGloss: 'what', frequencyRank: 27 },
+    { token: 'si', baseLanguageGloss: 'if', frequencyRank: 28 },
+    { token: 'encore', baseLanguageGloss: 'still, again', frequencyRank: 29 },
+    { token: 'après', baseLanguageGloss: 'after', frequencyRank: 30 },
+    { token: 'ou', baseLanguageGloss: 'or', frequencyRank: 31 },
   ];
 
   const spanishEnglishHighFrequency: Array<{ token: string; baseLanguageGloss: string; frequencyRank: number }> = [
@@ -393,7 +483,65 @@ async function main(): Promise<void> {
     });
   }
 
-  const commonWordCount = commonWordGlosses.length + mergedSpanishHighFrequency.length;
+  for (const entry of germanEnglishHighFrequency) {
+    await prisma.commonWordGloss.upsert({
+      where: {
+        language_token: {
+          language: 'de',
+          token: entry.token,
+        },
+      },
+      update: {
+        lemma: entry.token,
+        baseLanguageGloss: entry.baseLanguageGloss,
+        partOfSpeech: 'unknown',
+        frequencyRank: entry.frequencyRank,
+        source: 'common_lexicon',
+      },
+      create: {
+        language: 'de',
+        token: entry.token,
+        lemma: entry.token,
+        baseLanguageGloss: entry.baseLanguageGloss,
+        partOfSpeech: 'unknown',
+        frequencyRank: entry.frequencyRank,
+        source: 'common_lexicon',
+      },
+    });
+  }
+
+  for (const entry of frenchEnglishHighFrequency) {
+    await prisma.commonWordGloss.upsert({
+      where: {
+        language_token: {
+          language: 'fr',
+          token: entry.token,
+        },
+      },
+      update: {
+        lemma: entry.token,
+        baseLanguageGloss: entry.baseLanguageGloss,
+        partOfSpeech: 'unknown',
+        frequencyRank: entry.frequencyRank,
+        source: 'common_lexicon',
+      },
+      create: {
+        language: 'fr',
+        token: entry.token,
+        lemma: entry.token,
+        baseLanguageGloss: entry.baseLanguageGloss,
+        partOfSpeech: 'unknown',
+        frequencyRank: entry.frequencyRank,
+        source: 'common_lexicon',
+      },
+    });
+  }
+
+  const commonWordCount =
+    commonWordGlosses.length +
+    mergedSpanishHighFrequency.length +
+    germanEnglishHighFrequency.length +
+    frenchEnglishHighFrequency.length;
 
   process.stdout.write(
     `Seeded ${languages.length} active languages, ${professions.length} active professions, ${seededSubcategories} profession subcategories, ${seededScenarios} profession scenarios, and ${commonWordCount} common word glosses\n`,

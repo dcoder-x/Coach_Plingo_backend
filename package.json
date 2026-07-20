@@ -22,6 +22,7 @@
     "lessons:generate": "ts-node --transpile-only scripts/generate_scenario_lessons.ts",
     "lessons:review": "ts-node --transpile-only scripts/review_scenario_lessons.ts",
     "audio:migrate:word-cache": "ts-node --transpile-only scripts/migrate_word_audio_cache_to_cloudinary.ts",
+    "audio:backfill": "ts-node --transpile-only scripts/backfill_word_audio.ts",
     "postman:update": "node scripts/update-postman-collection.js",
     "smoke:pronunciation:upload": "ts-node --transpile-only scripts/smoke_pronunciation_upload.ts",
     "smoke:pronunciation:score": "ts-node --transpile-only scripts/smoke_pronunciation_score.ts",

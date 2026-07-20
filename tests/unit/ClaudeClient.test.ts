@@ -65,8 +65,8 @@ describe('ClaudeClient pronunciation critic helpers', () => {
         translations: { en: 'progress' },
       },
       {
-        profession: 'software_engineer',
-        subcategoryName: 'System Design & Architecture',
+        profession: 'technology_it',
+        subcategoryName: 'Software Development',
         scenarioName: 'Technical Standup',
         targetLanguage: 'es',
         baseLanguages: ['en'],
@@ -96,8 +96,8 @@ describe('ClaudeClient pronunciation critic helpers', () => {
         translations: { en: 'trade-off' },
       },
       {
-        profession: 'software_engineer',
-        subcategoryName: 'System Design & Architecture',
+        profession: 'technology_it',
+        subcategoryName: 'Software Development',
         scenarioName: 'Technical Standup',
         targetLanguage: 'es',
         baseLanguages: ['en'],
@@ -127,8 +127,8 @@ describe('ClaudeClient pronunciation critic helpers', () => {
         translations: { en: 'deployment' },
       },
       {
-        profession: 'software_engineer',
-        subcategoryName: 'System Design & Architecture',
+        profession: 'technology_it',
+        subcategoryName: 'Software Development',
         scenarioName: 'Technical Standup',
         targetLanguage: 'es',
         baseLanguages: ['en'],
