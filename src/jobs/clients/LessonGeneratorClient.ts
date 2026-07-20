@@ -45,30 +45,41 @@ export class LessonGeneratorClient {
     return { words, passages };
   }
 
+  // Below this floor, a lesson isn't worth publishing even if the scenario's
+  // vocabulary pool is exhausted — better to fail loudly than ship a thin lesson.
+  private static readonly MIN_ACCEPTABLE_WORDS = 6;
+
   private async generateWordsWithSupplement(
     input: GenerateLessonInput,
     targetCount: number,
   ): Promise<GeneratedScenarioWord[]> {
     const acceptedWords: GeneratedScenarioWord[] = [];
     const seenWords = new Set((input.excludeWords ?? []).map((word) => word.toLowerCase()));
+    let consecutiveZeroProgressAttempts = 0;
 
     for (
       let attempt = 0;
       attempt < LessonGeneratorClient.MAX_WORD_GENERATION_ATTEMPTS && acceptedWords.length < targetCount;
       attempt += 1
     ) {
-      const remaining = targetCount - acceptedWords.length;
+      // Always request a full-size batch, not just the remaining count.
+      // A request for "1-2 more words" gives the model little room to diversify,
+      // and it tends to re-suggest the same already-excluded core terms.
+      // Requesting the full target count each time — with the growing exclude
+      // list — gives it more surface area to find genuinely new words.
       let batch: GeneratedScenarioWord[];
       try {
         batch = await this.claudeClient.generateScenarioWords({
           ...input,
-          count: remaining,
+          count: targetCount,
           excludeWords: [...seenWords],
         });
       } catch {
         // Transient model failure — skip this attempt and retry
         continue;
       }
+
+      const countBefore = acceptedWords.length;
 
       for (const word of batch) {
         const key = word.word.toLowerCase();
@@ -83,9 +94,22 @@ export class LessonGeneratorClient {
           break;
         }
       }
+
+      if (acceptedWords.length === countBefore) {
+        consecutiveZeroProgressAttempts += 1;
+        // The model keeps re-suggesting words we've already excluded — the
+        // scenario's natural vocabulary pool is exhausted. Stop burning
+        // retries and accept what we have rather than exhausting all attempts.
+        if (consecutiveZeroProgressAttempts >= 2 && acceptedWords.length >= LessonGeneratorClient.MIN_ACCEPTABLE_WORDS) {
+          break;
+        }
+      } else {
+        consecutiveZeroProgressAttempts = 0;
+      }
     }
 
-    if (acceptedWords.length < targetCount) {
+    const minAcceptable = Math.min(targetCount, LessonGeneratorClient.MIN_ACCEPTABLE_WORDS);
+    if (acceptedWords.length < minAcceptable) {
       throw new Error(
         `Scenario generation returned only ${acceptedWords.length} acceptable words out of ${targetCount}`,
       );

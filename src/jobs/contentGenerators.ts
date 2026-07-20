@@ -74,13 +74,21 @@ const lessonTemplates: Record<string, Array<{ word: string; translation: string;
     { word: 'seguridad', translation: 'safety', tags: ['compliance', 'operations'] },
     { word: 'despliegue', translation: 'deployment', tags: ['delivery', 'release'] },
   ],
-  hospitality: [
-    { word: 'reserva', translation: 'reservation', tags: ['front-desk', 'booking'] },
-    { word: 'huésped', translation: 'guest', tags: ['service', 'hospitality'] },
-    { word: 'menú', translation: 'menu', tags: ['restaurant', 'service'] },
-    { word: 'turno', translation: 'shift', tags: ['staffing', 'operations'] },
-    { word: 'factura', translation: 'bill', tags: ['payments', 'front-desk'] },
-    { word: 'bienvenida', translation: 'welcome', tags: ['greeting', 'service'] },
+  marketing: [
+    { word: 'campaña', translation: 'campaign', tags: ['strategy', 'promotion'] },
+    { word: 'audiencia', translation: 'audience', tags: ['targeting', 'segmentation'] },
+    { word: 'marca', translation: 'brand', tags: ['identity', 'positioning'] },
+    { word: 'conversión', translation: 'conversion', tags: ['analytics', 'funnel'] },
+    { word: 'contenido', translation: 'content', tags: ['creative', 'strategy'] },
+    { word: 'presupuesto', translation: 'budget', tags: ['planning', 'spend'] },
+  ],
+  technology_it: [
+    { word: 'código', translation: 'code', tags: ['development', 'engineering'] },
+    { word: 'incidente', translation: 'incident', tags: ['ops', 'response'] },
+    { word: 'requisito', translation: 'requirement', tags: ['product', 'planning'] },
+    { word: 'datos', translation: 'data', tags: ['analytics', 'insights'] },
+    { word: 'seguridad', translation: 'security', tags: ['compliance', 'risk'] },
+    { word: 'implementación', translation: 'deployment', tags: ['delivery', 'release'] },
   ],
 };
 
@@ -146,9 +154,11 @@ function buildExamples(
     ? 'patient handoff'
     : normalizedProfession.includes('engineer')
       ? 'deployment review'
-      : normalizedProfession.includes('hospitality')
-        ? 'guest service'
-        : 'team operations';
+      : normalizedProfession.includes('marketing')
+        ? 'campaign review'
+        : normalizedProfession.includes('technology') || normalizedProfession.includes('it')
+          ? 'sprint review'
+          : 'team operations';
 
   const templates = sentencePairsByLanguage[normalizedLanguage] || {
     op: `Update ${word} for this ${professionCue}.`,
