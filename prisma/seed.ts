@@ -319,6 +319,76 @@ async function main(): Promise<void> {
     { language: 'en', token: 'of', lemma: 'of', baseLanguageGloss: 'de', partOfSpeech: 'preposition', frequencyRank: 2 },
     { language: 'en', token: 'and', lemma: 'and', baseLanguageGloss: 'y', partOfSpeech: 'conjunction', frequencyRank: 3 },
     { language: 'en', token: 'to', lemma: 'to', baseLanguageGloss: 'a, para', partOfSpeech: 'preposition', frequencyRank: 4 },
+    // German common words
+    { language: 'de', token: 'der', lemma: 'der', baseLanguageGloss: 'the (masculine)', partOfSpeech: 'article', frequencyRank: 1 },
+    { language: 'de', token: 'die', lemma: 'die', baseLanguageGloss: 'the (feminine/plural)', partOfSpeech: 'article', frequencyRank: 2 },
+    { language: 'de', token: 'und', lemma: 'und', baseLanguageGloss: 'and', partOfSpeech: 'conjunction', frequencyRank: 3 },
+    { language: 'de', token: 'das', lemma: 'das', baseLanguageGloss: 'the (neuter) / that', partOfSpeech: 'article', frequencyRank: 4 },
+    { language: 'de', token: 'ist', lemma: 'sein', baseLanguageGloss: 'is', partOfSpeech: 'verb', frequencyRank: 5 },
+    { language: 'de', token: 'in', lemma: 'in', baseLanguageGloss: 'in', partOfSpeech: 'preposition', frequencyRank: 6 },
+    { language: 'de', token: 'zu', lemma: 'zu', baseLanguageGloss: 'to, at', partOfSpeech: 'preposition', frequencyRank: 7 },
+    { language: 'de', token: 'den', lemma: 'der', baseLanguageGloss: 'the (masc. accusative)', partOfSpeech: 'article', frequencyRank: 8 },
+    // French common words
+    { language: 'fr', token: 'le', lemma: 'le', baseLanguageGloss: 'the (masculine)', partOfSpeech: 'article', frequencyRank: 1 },
+    { language: 'fr', token: 'la', lemma: 'la', baseLanguageGloss: 'the (feminine)', partOfSpeech: 'article', frequencyRank: 2 },
+    { language: 'fr', token: 'et', lemma: 'et', baseLanguageGloss: 'and', partOfSpeech: 'conjunction', frequencyRank: 3 },
+    { language: 'fr', token: 'de', lemma: 'de', baseLanguageGloss: 'of, from', partOfSpeech: 'preposition', frequencyRank: 4 },
+    { language: 'fr', token: 'est', lemma: 'être', baseLanguageGloss: 'is', partOfSpeech: 'verb', frequencyRank: 5 },
+    { language: 'fr', token: 'à', lemma: 'à', baseLanguageGloss: 'to, at', partOfSpeech: 'preposition', frequencyRank: 6 },
+    { language: 'fr', token: 'que', lemma: 'que', baseLanguageGloss: 'that, which', partOfSpeech: 'pronoun', frequencyRank: 7 },
+    { language: 'fr', token: 'les', lemma: 'les', baseLanguageGloss: 'the (plural)', partOfSpeech: 'article', frequencyRank: 8 },
+  ];
+
+  const germanEnglishHighFrequency: Array<{ token: string; baseLanguageGloss: string; frequencyRank: number }> = [
+    { token: 'ich', baseLanguageGloss: 'I', frequencyRank: 9 },
+    { token: 'du', baseLanguageGloss: 'you (informal)', frequencyRank: 10 },
+    { token: 'sie', baseLanguageGloss: 'she / they / you (formal)', frequencyRank: 11 },
+    { token: 'er', baseLanguageGloss: 'he', frequencyRank: 12 },
+    { token: 'wir', baseLanguageGloss: 'we', frequencyRank: 13 },
+    { token: 'nicht', baseLanguageGloss: 'not', frequencyRank: 14 },
+    { token: 'mit', baseLanguageGloss: 'with', frequencyRank: 15 },
+    { token: 'für', baseLanguageGloss: 'for', frequencyRank: 16 },
+    { token: 'auf', baseLanguageGloss: 'on', frequencyRank: 17 },
+    { token: 'von', baseLanguageGloss: 'from, of', frequencyRank: 18 },
+    { token: 'auch', baseLanguageGloss: 'also', frequencyRank: 19 },
+    { token: 'werden', baseLanguageGloss: 'to become / will', frequencyRank: 20 },
+    { token: 'haben', baseLanguageGloss: 'to have', frequencyRank: 21 },
+    { token: 'sind', baseLanguageGloss: 'are', frequencyRank: 22 },
+    { token: 'aber', baseLanguageGloss: 'but', frequencyRank: 23 },
+    { token: 'wie', baseLanguageGloss: 'how, as', frequencyRank: 24 },
+    { token: 'was', baseLanguageGloss: 'what', frequencyRank: 25 },
+    { token: 'wenn', baseLanguageGloss: 'if, when', frequencyRank: 26 },
+    { token: 'einen', baseLanguageGloss: 'a, an (masc. accusative)', frequencyRank: 27 },
+    { token: 'noch', baseLanguageGloss: 'still, yet', frequencyRank: 28 },
+    { token: 'nach', baseLanguageGloss: 'after, to', frequencyRank: 29 },
+    { token: 'bei', baseLanguageGloss: 'at, near, during', frequencyRank: 30 },
+    { token: 'oder', baseLanguageGloss: 'or', frequencyRank: 31 },
+  ];
+
+  const frenchEnglishHighFrequency: Array<{ token: string; baseLanguageGloss: string; frequencyRank: number }> = [
+    { token: 'un', baseLanguageGloss: 'a, an (masculine)', frequencyRank: 9 },
+    { token: 'une', baseLanguageGloss: 'a, an (feminine)', frequencyRank: 10 },
+    { token: 'je', baseLanguageGloss: 'I', frequencyRank: 11 },
+    { token: 'il', baseLanguageGloss: 'he, it', frequencyRank: 12 },
+    { token: 'elle', baseLanguageGloss: 'she, it', frequencyRank: 13 },
+    { token: 'nous', baseLanguageGloss: 'we', frequencyRank: 14 },
+    { token: 'vous', baseLanguageGloss: 'you (formal/plural)', frequencyRank: 15 },
+    { token: 'pas', baseLanguageGloss: 'not', frequencyRank: 16 },
+    { token: 'avec', baseLanguageGloss: 'with', frequencyRank: 17 },
+    { token: 'pour', baseLanguageGloss: 'for', frequencyRank: 18 },
+    { token: 'sur', baseLanguageGloss: 'on', frequencyRank: 19 },
+    { token: 'dans', baseLanguageGloss: 'in', frequencyRank: 20 },
+    { token: 'aussi', baseLanguageGloss: 'also', frequencyRank: 21 },
+    { token: 'être', baseLanguageGloss: 'to be', frequencyRank: 22 },
+    { token: 'avoir', baseLanguageGloss: 'to have', frequencyRank: 23 },
+    { token: 'sont', baseLanguageGloss: 'are', frequencyRank: 24 },
+    { token: 'mais', baseLanguageGloss: 'but', frequencyRank: 25 },
+    { token: 'comment', baseLanguageGloss: 'how', frequencyRank: 26 },
+    { token: 'quoi', baseLanguageGloss: 'what', frequencyRank: 27 },
+    { token: 'si', baseLanguageGloss: 'if', frequencyRank: 28 },
+    { token: 'encore', baseLanguageGloss: 'still, again', frequencyRank: 29 },
+    { token: 'après', baseLanguageGloss: 'after', frequencyRank: 30 },
+    { token: 'ou', baseLanguageGloss: 'or', frequencyRank: 31 },
   ];
 
   const spanishEnglishHighFrequency: Array<{ token: string; baseLanguageGloss: string; frequencyRank: number }> = [
@@ -413,7 +483,65 @@ async function main(): Promise<void> {
     });
   }
 
-  const commonWordCount = commonWordGlosses.length + mergedSpanishHighFrequency.length;
+  for (const entry of germanEnglishHighFrequency) {
+    await prisma.commonWordGloss.upsert({
+      where: {
+        language_token: {
+          language: 'de',
+          token: entry.token,
+        },
+      },
+      update: {
+        lemma: entry.token,
+        baseLanguageGloss: entry.baseLanguageGloss,
+        partOfSpeech: 'unknown',
+        frequencyRank: entry.frequencyRank,
+        source: 'common_lexicon',
+      },
+      create: {
+        language: 'de',
+        token: entry.token,
+        lemma: entry.token,
+        baseLanguageGloss: entry.baseLanguageGloss,
+        partOfSpeech: 'unknown',
+        frequencyRank: entry.frequencyRank,
+        source: 'common_lexicon',
+      },
+    });
+  }
+
+  for (const entry of frenchEnglishHighFrequency) {
+    await prisma.commonWordGloss.upsert({
+      where: {
+        language_token: {
+          language: 'fr',
+          token: entry.token,
+        },
+      },
+      update: {
+        lemma: entry.token,
+        baseLanguageGloss: entry.baseLanguageGloss,
+        partOfSpeech: 'unknown',
+        frequencyRank: entry.frequencyRank,
+        source: 'common_lexicon',
+      },
+      create: {
+        language: 'fr',
+        token: entry.token,
+        lemma: entry.token,
+        baseLanguageGloss: entry.baseLanguageGloss,
+        partOfSpeech: 'unknown',
+        frequencyRank: entry.frequencyRank,
+        source: 'common_lexicon',
+      },
+    });
+  }
+
+  const commonWordCount =
+    commonWordGlosses.length +
+    mergedSpanishHighFrequency.length +
+    germanEnglishHighFrequency.length +
+    frenchEnglishHighFrequency.length;
 
   process.stdout.write(
     `Seeded ${languages.length} active languages, ${professions.length} active professions, ${seededSubcategories} profession subcategories, ${seededScenarios} profession scenarios, and ${commonWordCount} common word glosses\n`,
